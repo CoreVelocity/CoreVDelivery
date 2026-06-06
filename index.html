@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v1.4</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v1.6</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v1.4</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v1.6</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v1.4</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v1.6</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -288,8 +288,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.4
-   Build: v1.4 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v1.6
+   Build: v1.6 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -319,23 +319,29 @@ const REVIEWS_CONFIG = {
 };
 
 /* ─────────── ROLES (REQUIREMENT C) ─────────── */
-const ADMIN_USERS = ['Ahmed'];                                   // full control
-const OPS_USERS   = ['Charlie','Prem','Gladys','Sami','Kamal'];  // add / modify
+/* ─────────── ROLES (v1.5) ───────────
+   Ahmed, Gladys           → Admin: full control everywhere (+ delete, branding)
+   Charlie, Prem           → Contributor: add/modify ONLY in Deliveries,
+                             Spares & Stock, and Logs & Images. View-only elsewhere.
+   Everyone else authorized → Viewer (read-only everywhere)            */
+const ADMIN_USERS   = ['Ahmed','Gladys'];
+const CONTRIB_USERS = ['Charlie','Prem'];
+const CONTRIB_MODULES = ['deliveries','spares','logs'];   // where contributors may add/modify
 function roleOf(name){
-  if(ADMIN_USERS.includes(name)) return 'admin';
-  if(OPS_USERS.includes(name))   return 'ops';
+  if(ADMIN_USERS.includes(name))   return 'admin';
+  if(CONTRIB_USERS.includes(name)) return 'contributor';
   return 'viewer';
 }
 /* M365 email → tracker name */
 const USER_EMAILS = {
   'ahmed@core-velocity.com':'Ahmed',
+  'gladys@core-velocity.com':'Gladys',
   'charlie@core-velocity.com':'Charlie',
   'prem@core-velocity.com':'Prem',
-  'gladys@core-velocity.com':'Gladys',
   'sami@core-velocity.com':'Sami',
   'kamal@core-velocity.com':'Kamal'
 };
-const ALL_USERS = [...ADMIN_USERS, ...OPS_USERS];
+const ALL_USERS = [...ADMIN_USERS, ...CONTRIB_USERS, 'Sami', 'Kamal'];
 
 /* ─────────── DROPDOWN CODE LISTS (from CODES / Code 2 sheets) ─────────── */
 const MODELS   = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1'];
@@ -426,6 +432,15 @@ function money(n){ return 'AED '+(Number(n)||0).toLocaleString('en-AE',{maximumF
 function nextDeliveryId(){ let max=0; state.deliveries.forEach(d=>{const m=/OXE-(\d+)/.exec(d.id||''); if(m) max=Math.max(max,+m[1]);}); return 'OXE-'+String(max+1).padStart(5,'0'); }
 function nextTicketCode(){ let max=0; state.tickets.forEach(t=>{const m=/CC(\d+)/.exec(t.code||''); if(m) max=Math.max(max,+m[1]);}); return 'CC'+String(max+1).padStart(2,'0'); }
 function qtyInStock(s){ return (Number(s.received)||0)-(Number(s.moved)||0); }
+/* Normalise any delivery's region into the three reporting buckets, reading
+   the region field first and falling back to the address text. */
+function regionBucket(rec){
+  const t=((rec.region||'')+' '+(rec.address||'')).toLowerCase();
+  if(/abu\s*dhabi/.test(t)) return 'Abu Dhabi';
+  if(/dubai/.test(t)) return 'Dubai';
+  return 'Others';
+}
+const REGION_BUCKETS=['Dubai','Abu Dhabi','Others'];
 function toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
 
 /* image → resized data URL (keeps the synced JSON small) */
@@ -467,24 +482,73 @@ function openSettings(){
       <div style="display:flex;align-items:center;gap:16px;margin-top:6px">
         <div style="width:72px;height:72px;border-radius:14px;border:1px solid var(--border);background:#f8fafc ${logo?`url("${logo}") center/cover no-repeat`:''};display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent2)">${logo?'':'OX'}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn primary" onclick="uploadLogo()">⬆ Upload logo</button>
+          <button class="btn primary" onclick="uploadLogo()">⬆ Upload &amp; crop logo</button>
           ${logo?`<button class="btn danger" onclick="removeLogo()">Remove</button>`:''}
         </div>
       </div>
-      <div class="hint">PNG or JPG. Auto-resized to ~240px and shown in the top bar &amp; sign-in. Synced to the whole team.</div>
+      <div class="hint">PNG or JPG — you'll crop it to a square before it's applied. Shown in the top bar &amp; sign-in, synced to the whole team.</div>
     </div>
     <div class="fld" style="margin-top:18px"><label>Shared database</label>
       <div class="hint">One file for the whole team: <b>${esc(ONEDRIVE_CONFIG.filePath)}</b> in <b>${esc(ONEDRIVE_CONFIG.sharedDriveUser)}</b>'s OneDrive. Last updated ${state.meta&&state.meta.updated?fmtDate(state.meta.updated):'—'} by ${esc((state.meta&&state.meta.by)||'—')}.</div>
     </div>`, null);
 }
-function uploadLogo(){ pickImage(240,'image/png',0.92, dataUrl=>{ state.meta=state.meta||{}; state.meta.logo=dataUrl; persist(); applyBranding(); openSettings(); toast('Logo updated','ok'); }); }
+function uploadLogo(){ startLogoCrop(); }
 function removeLogo(){ state.meta=state.meta||{}; state.meta.logo=null; persist(); applyBranding(); openSettings(); toast('Logo removed'); }
 
-/* ─────────── PERMISSIONS ─────────── */
-function canEdit(){ return CURRENT_ROLE==='admin'||CURRENT_ROLE==='ops'; }
-function canDelete(){ return CURRENT_ROLE==='admin'; }
-function canEditRow(row){ if(CURRENT_ROLE==='admin') return true; if(CURRENT_ROLE!=='ops') return false; return !row.locked; }
-function requireEdit(){ if(!canEdit()){ toast('Viewers cannot modify records','err'); return false;} return true; }
+/* ── Logo cropper (square, drag to pan, slider to zoom — no libraries) ── */
+let _crop=null, _cropMove=null, _cropUp=null;
+function startLogoCrop(){
+  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=ev=>{ const img=new Image(); img.onload=()=>openCropper(img); img.onerror=()=>toast('Could not read image','err'); img.src=ev.target.result; };
+    rd.readAsDataURL(f); };
+  inp.click();
+}
+function openCropper(img){
+  const S=256; const cover=Math.max(S/img.width, S/img.height);
+  _crop={img,size:S,minScale:cover,scale:cover,ox:(S-img.width*cover)/2,oy:(S-img.height*cover)/2,drag:false,lx:0,ly:0};
+  modal('Crop logo',`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px">
+      <div style="width:${S}px;height:${S}px;border-radius:18px;overflow:hidden;border:2px solid var(--border);background:#0f172a">
+        <canvas id="cropCanvas" width="${S}" height="${S}" style="touch-action:none;cursor:grab;display:block"></canvas>
+      </div>
+      <div style="width:100%;max-width:300px">
+        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600">Zoom</label>
+        <input id="cropZoom" type="range" min="1" max="3.5" step="0.01" value="1" style="width:100%" oninput="cropZoom(this.value)">
+        <div class="hint">Drag the image to reposition, slide to zoom. The square is exactly what becomes your logo.</div>
+      </div>
+    </div>`, ()=>commitCrop());
+  setTimeout(initCropCanvas,40);
+}
+function drawCrop(){ const c=document.getElementById('cropCanvas'); if(!c||!_crop) return; const x=c.getContext('2d'); const {img,scale,ox,oy,size}=_crop; x.clearRect(0,0,size,size); x.drawImage(img,ox,oy,img.width*scale,img.height*scale); }
+function clampCrop(){ const {img,scale,size}=_crop; const w=img.width*scale,h=img.height*scale; _crop.ox=Math.min(0,Math.max(size-w,_crop.ox)); _crop.oy=Math.min(0,Math.max(size-h,_crop.oy)); }
+function cropZoom(v){ if(!_crop) return; const cx=_crop.size/2,cy=_crop.size/2; const old=_crop.scale; const ns=_crop.minScale*Number(v); _crop.ox=cx-(cx-_crop.ox)*(ns/old); _crop.oy=cy-(cy-_crop.oy)*(ns/old); _crop.scale=ns; clampCrop(); drawCrop(); }
+function initCropCanvas(){
+  const c=document.getElementById('cropCanvas'); if(!c) return; drawCrop();
+  const pt=e=>{ const r=c.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; };
+  const down=e=>{ _crop.drag=true; const p=pt(e); _crop.lx=p.x; _crop.ly=p.y; c.style.cursor='grabbing'; };
+  const move=e=>{ if(!_crop||!_crop.drag) return; const p=pt(e); _crop.ox+=p.x-_crop.lx; _crop.oy+=p.y-_crop.ly; _crop.lx=p.x; _crop.ly=p.y; clampCrop(); drawCrop(); if(e.cancelable)e.preventDefault(); };
+  const up=()=>{ if(_crop){_crop.drag=false;} c.style.cursor='grab'; };
+  c.onmousedown=down; c.ontouchstart=down; c.ontouchmove=move; c.ontouchend=up;
+  if(_cropMove) window.removeEventListener('mousemove',_cropMove);
+  if(_cropUp) window.removeEventListener('mouseup',_cropUp);
+  _cropMove=move; _cropUp=up; window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+}
+function commitCrop(){ const c=document.getElementById('cropCanvas'); if(!c) return; const dataUrl=c.toDataURL('image/png');
+  if(_cropMove) window.removeEventListener('mousemove',_cropMove);
+  if(_cropUp) window.removeEventListener('mouseup',_cropUp);
+  _cropMove=_cropUp=null; _crop=null;
+  state.meta=state.meta||{}; state.meta.logo=dataUrl; persist(); applyBranding(); closeModal(); openSettings(); toast('Logo updated','ok'); }
+
+/* ─────────── PERMISSIONS (module-scoped, v1.5) ─────────── */
+function canEditModule(mod){
+  if(CURRENT_ROLE==='admin') return true;
+  if(CURRENT_ROLE==='contributor') return CONTRIB_MODULES.includes(mod);
+  return false;
+}
+function canDelete(){ return CURRENT_ROLE==='admin'; }   // deletes stay admin-only
+function canEditRow(row){ if(CURRENT_ROLE==='admin') return true; if(!canEditModule('deliveries')) return false; return !row.locked; }
+function requireEdit(mod){ if(!canEditModule(mod)){ toast('You have view-only access to this section','err'); return false;} return true; }
 
 /* ─────────── PERSISTENCE ─────────── */
 function saveLocal(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){} }
@@ -657,8 +721,8 @@ function enterApp(){
   document.getElementById('userName').textContent=CURRENT_USER;
   document.getElementById('userAvatar').textContent=(CURRENT_USER||'?').slice(0,2).toUpperCase();
   const rb=document.getElementById('roleBadge');
-  rb.className='role-badge '+CURRENT_ROLE;
-  rb.textContent=CURRENT_ROLE==='admin'?'Admin':CURRENT_ROLE==='ops'?'Operational':'Viewer';
+  rb.className='role-badge '+(CURRENT_ROLE==='admin'?'admin':CURRENT_ROLE==='contributor'?'ops':'viewer');
+  rb.textContent=CURRENT_ROLE==='admin'?'Admin':CURRENT_ROLE==='contributor'?'Contributor':'Viewer';
   document.getElementById('settingsBtn').style.display = CURRENT_ROLE==='admin'?'flex':'none';
   applyBranding();
   go('dashboard');
@@ -738,6 +802,7 @@ function renderDashboard(){
   const xp1Qty=d.filter(x=>(x.model||'').toUpperCase().startsWith('XP1')).length;
   const byRep=groupCount(d,'salesPerson').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:PALETTE[i%PALETTE.length]}));
   const byCoach=groupCount(d.filter(x=>x.salesCoach&&x.salesCoach!=='N/A'),'salesCoach').sort((a,b)=>b.value-a.value).map(r=>({...r,color:'#8b5cf6'}));
+  const byRegion=REGION_BUCKETS.map(b=>({label:b, value:d.filter(x=>regionBucket(x)===b).length, color:'#0d9488'}));
 
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
@@ -777,7 +842,7 @@ function renderDashboard(){
 
     <div class="grid-3">
       <div class="panel"><h3>🏷️ By model</h3>${barChart(groupCount(d,'model').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:PALETTE[i%PALETTE.length]})))}</div>
-      <div class="panel"><h3>📍 By region</h3>${barChart(groupCount(d,'region').sort((a,b)=>b.value-a.value).map((r,i)=>({...r,color:'#0d9488'})))}</div>
+      <div class="panel"><h3>📍 By region</h3>${barChart(byRegion)}</div>
       <div class="panel"><h3>💵 Avg cost / unit</h3>${barChart(avgByModel.map(r=>({...r,color:'#f59e0b'})))}<div class="p-sub" style="margin-top:10px">Offloading avg & unit costs from the COSTING log.</div></div>
     </div>
 
@@ -808,8 +873,8 @@ function renderDeliveries(){
       <div class="toolbar">
         <div class="search"><input id="delSearch" placeholder="Search receiver, model, ID…" value="${esc(delSearch)}" oninput="delSearch=this.value;renderActive()"></div>
         <button class="btn" onclick="exportCSV('deliveries')">⬇ CSV</button>
-        ${canEdit()?`<button class="btn" onclick="importDeliveriesExcel()">⬆ Import Excel</button>`:''}
-        ${canEdit()?`<button class="btn primary" onclick="openDelivery()">＋ New delivery</button>`:''}
+        ${canEditModule('deliveries')?`<button class="btn" onclick="importDeliveriesExcel()">⬆ Import Excel</button>`:''}
+        ${canEditModule('deliveries')?`<button class="btn primary" onclick="openDelivery()">＋ New delivery</button>`:''}
       </div>
     </div>
     <div class="filter-pills">
@@ -831,7 +896,7 @@ function renderDeliveries(){
   </div>`);
 }
 function openDelivery(id){
-  if(!requireEdit())return;
+  if(!requireEdit('deliveries'))return;
   const r = id? state.deliveries.find(x=>x.id===id) : {id:nextDeliveryId(),warrantyMonths:36,region:'Dubai',status:'OPEN',deliveryTime:'09:00am'};
   if(id && !canEditRow(r)){ toast('This record is locked — admin only','err'); return; }
   const sel=(name,opts,val)=>`<select name="${name}">${['',...opts].map(o=>`<option ${String(val||'')===String(o)?'selected':''}>${o}</option>`).join('')}</select>`;
@@ -881,8 +946,8 @@ function renderSpares(){
       <div class="toolbar">
         <button class="btn ${spareTab==='stock'?'primary':''}" onclick="spareTab='stock';renderActive()">📦 Inventory</button>
         <button class="btn ${spareTab==='issued'?'primary':''}" onclick="spareTab='issued';renderActive()">🧾 Issued log</button>
-        ${canEdit()&&spareTab==='stock'?`<button class="btn primary" onclick="openStock()">＋ Item</button>`:''}
-        ${canEdit()&&spareTab==='issued'?`<button class="btn primary" onclick="openIssue()">＋ Issue</button>`:''}
+        ${canEditModule('spares')&&spareTab==='stock'?`<button class="btn primary" onclick="openStock()">＋ Item</button>`:''}
+        ${canEditModule('spares')&&spareTab==='issued'?`<button class="btn primary" onclick="openIssue()">＋ Issue</button>`:''}
       </div>
     </div>
     <div id="spareBody"></div>
@@ -896,17 +961,17 @@ function renderSpares(){
       return `<div class="panel" style="margin-bottom:14px"><h3>${cat==='Fitness Equipment'?'🏋️':cat==='Accessories'?'🎒':'🔧'} ${cat}</h3>
       <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Product</th><th>SKU</th><th>Supplier</th><th>Received</th><th>Moved</th><th>In Stock</th><th>Min</th><th>Reorder?</th><th>⚙</th></tr></thead><tbody>
       ${items.map(s=>{const q=qtyInStock(s);const re=q<=s.min;return `<tr><td><b>${esc(s.product)}</b></td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${q}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
-      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openStock('${s.id}')">Edit</button> <button class="mini-btn" onclick="openMove('${s.id}')">Move</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delStock('${s.id}')">✕</button>`:''}</td></tr>`;}).join('')}
+      <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openStock('${s.id}')">Edit</button> <button class="mini-btn" onclick="openMove('${s.id}')">Move</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delStock('${s.id}')">✕</button>`:''}</td></tr>`;}).join('')}
       </tbody></table></div></div>`;
     }).join('');
   } else {
     body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Region</th><th>Accessory / Spare</th><th>Qty</th><th>⚙</th></tr></thead><tbody>
       ${state.accessories.length?state.accessories.map(a=>`<tr><td>${fmtDate(a.date)}</td><td><b>${esc(a.client)}</b></td><td><span class="tag">${esc(a.region)}</span></td><td>${esc(a.item)}</td><td>${a.qty}</td>
-      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openIssue('${a.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delIssue('${a.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No issued items logged.</div></td></tr>`}
+      <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openIssue('${a.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delIssue('${a.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No issued items logged.</div></td></tr>`}
     </tbody></table></div>`;
   }
 }
-function openStock(id){ if(!requireEdit())return; const s=id?state.stock.find(x=>x.id===id):{id:uid(),cat:'Spare Parts',supplier:'OxeFit Inc.',received:0,moved:0,min:2};
+function openStock(id){ if(!requireEdit('spares'))return; const s=id?state.stock.find(x=>x.id===id):{id:uid(),cat:'Spare Parts',supplier:'OxeFit Inc.',received:0,moved:0,min:2};
   const sel=(n,o,v)=>`<select name="${n}">${o.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select>`;
   modal(id?'Edit item':'New stock item',`<div class="form-grid">
     <div class="fld"><label>Product name</label><input name="product" value="${esc(s.product||'')}"></div>
@@ -918,7 +983,7 @@ function openStock(id){ if(!requireEdit())return; const s=id?state.stock.find(x=
     <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div></div>`,
     ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
-function openMove(id){ if(!requireEdit())return; const s=state.stock.find(x=>x.id===id);
+function openMove(id){ if(!requireEdit('spares'))return; const s=state.stock.find(x=>x.id===id);
   modal('Stock movement — '+esc(s.product),`<div class="fld"><label>Quantity to move out (current in stock: ${qtyInStock(s)})</label><input type="number" name="qty" value="1" min="1"></div>
     <div class="fld" style="margin-top:12px"><label>Issued to (client / note, optional → adds to Issued log)</label><input name="client"></div>
     <div class="fld" style="margin-top:12px"><label>Region</label><select name="region">${REGIONS.map(r=>`<option>${r}</option>`).join('')}</select></div>`,
@@ -927,7 +992,7 @@ function openMove(id){ if(!requireEdit())return; const s=state.stock.find(x=>x.i
       persist(); closeModal(); toast('Moved '+q+' units','ok');});
 }
 function delStock(id){ if(!canDelete())return; if(!confirm('Delete item?'))return; deleteFrom('stock',id); }
-function openIssue(id){ if(!requireEdit())return; const a=id?state.accessories.find(x=>x.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),region:'Dubai',qty:1};
+function openIssue(id){ if(!requireEdit('spares'))return; const a=id?state.accessories.find(x=>x.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),region:'Dubai',qty:1};
   modal(id?'Edit issued item':'Issue accessory / spare',`<div class="form-grid">
     <div class="fld"><label>Date</label><input type="date" name="date" value="${esc(a.date||'')}"></div>
     <div class="fld"><label>Client name</label><input name="client" value="${esc(a.client||'')}"></div>
@@ -949,7 +1014,7 @@ function renderShipping(){
   <div class="view active">
     <div class="page-head">
       <div><div class="page-title">Shipping &amp; Costs</div><div class="page-sub">Per-delivery cost log &amp; rolling averages</div></div>
-      <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEdit()?`<button class="btn" onclick="importCostingExcel()">⬆ Import Excel</button>`:''}${canEdit()?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
+      <div class="toolbar"><button class="btn" onclick="exportCSV('costing')">⬇ CSV</button>${canEditModule('shipping')?`<button class="btn" onclick="importCostingExcel()">⬆ Import Excel</button>`:''}${canEditModule('shipping')?`<button class="btn primary" onclick="openCost()">＋ Cost entry</button>`:''}</div>
     </div>
     <div class="kpi-grid">
       <div class="kpi green"><div class="k-label">Total Cost</div><div class="k-val" style="font-size:24px">${money(total)}</div><div class="k-sub">${c.length} entries</div></div>
@@ -959,11 +1024,11 @@ function renderShipping(){
     </div>
     <div class="table-wrap"><table><thead><tr><th>Delivery Note ID</th><th>Receiver</th><th>Type</th><th>Address</th><th>Delivery Date</th><th>Sales Person</th><th>Costing</th><th>⚙</th></tr></thead><tbody>
       ${c.length?c.map(x=>`<tr><td><b>${esc(x.noteId)}</b></td><td>${esc(x.receiver)}</td><td><span class="tag">${esc(x.type)}</span></td><td class="note-cell">${esc(x.address)}</td><td>${fmtDate(x.date)}</td><td>${esc(x.salesPerson)}</td><td><b>${money(x.cost)}</b></td>
-      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="8"><div class="empty">No cost entries.</div></td></tr>`}
+      <td class="actions">${canEditModule('shipping')?`<button class="mini-btn" onclick="openCost('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delCost('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="8"><div class="empty">No cost entries.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
-function openCost(id){ if(!requireEdit())return; const x=id?state.costing.find(r=>r.id===id):{id:uid(),type:'XS1',date:new Date().toISOString().slice(0,10)};
+function openCost(id){ if(!requireEdit('shipping'))return; const x=id?state.costing.find(r=>r.id===id):{id:uid(),type:'XS1',date:new Date().toISOString().slice(0,10)};
   const opts=state.deliveries.map(d=>`<option value="${esc(d.id)}" ${x.noteId===d.id?'selected':''}>${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join('');
   modal(id?'Edit cost entry':'New cost entry',`<div class="form-grid">
     <div class="fld"><label>Order / Delivery Note ID</label><select name="noteId" onchange="costFill(this)"><option value="">— select order —</option>${opts}${x.noteId&&!state.deliveries.some(d=>d.id===x.noteId)?`<option value="${esc(x.noteId)}" selected>${esc(x.noteId)} (custom)</option>`:''}</select><div class="hint">The same order ID can appear in multiple cost rows (e.g. delivery + offloading + accessory).</div></div>
@@ -987,48 +1052,82 @@ function costFill(selEl){ const d=state.deliveries.find(x=>x.id===selEl.value); 
 function delCost(id){ if(!canDelete())return; deleteFrom('costing',id); toast('Deleted'); }
 
 /* ============================================================
-   VIEW: LOGS & IMAGES  (delivery photos linked to order IDs)
+   VIEW: LOGS & IMAGES  (delivery photos + delivery notes & documents per order)
 ============================================================ */
-let _logImg=null;
+let _logImg=null, _logDoc=null;
+const DOC_TYPES=['Delivery Note','Signed POD','Invoice','Warranty','Other document'];
+const MAX_DOC_BYTES=4*1024*1024; // 4 MB cap to keep the synced file healthy
+function isPhoto(l){ return l.kind!=='doc'; }
+function logImgSrc(l){ return l.data||l.img||''; }
+function docIcon(mime,name){ const n=(name||'').toLowerCase(); if((mime||'').includes('pdf')||n.endsWith('.pdf')) return '📄'; if(/(xls|sheet|csv)/.test((mime||'')+n)) return '📊'; if(/(word|doc)/.test((mime||'')+n)) return '📝'; if((mime||'').startsWith('image/')) return '🖼️'; return '📎'; }
 function renderLogs(){
   const logs=(state.logs||[]).slice();
+  const photos=logs.filter(isPhoto), docs=logs.filter(l=>l.kind==='doc');
   const groups={}; logs.forEach(l=>{ (groups[l.orderId||'—']=groups[l.orderId||'—']||[]).push(l); });
   const orderKeys=Object.keys(groups).sort();
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
     <div class="page-head">
-      <div><div class="page-title">Logs &amp; Images</div><div class="page-sub">${logs.length} photo${logs.length===1?'':'s'} across ${orderKeys.length} order${orderKeys.length===1?'':'s'} · proof of successful delivery</div></div>
-      <div class="toolbar">${canEdit()?`<button class="btn primary" onclick="openLog()">📷 Upload photo</button>`:''}</div>
+      <div><div class="page-title">Logs &amp; Images</div><div class="page-sub">${photos.length} photo${photos.length===1?'':'s'} · ${docs.length} document${docs.length===1?'':'s'} across ${orderKeys.length} order${orderKeys.length===1?'':'s'}</div></div>
+      <div class="toolbar">${canEditModule('logs')?`<button class="btn primary" onclick="openLog()">📷 Upload photo</button> <button class="btn" onclick="openDoc()">📎 Attach document</button>`:''}</div>
     </div>
-    ${logs.length? orderKeys.map(k=>{ const items=groups[k]; const rec=state.deliveries.find(d=>d.id===k); return `
+    ${logs.length? orderKeys.map(k=>{ const items=groups[k]; const rec=state.deliveries.find(d=>d.id===k);
+      const ph=items.filter(isPhoto), dc=items.filter(l=>l.kind==='doc'); return `
       <div class="panel" style="margin-bottom:14px">
-        <h3>🚚 ${esc(k)} ${rec?`<span class="tag">${esc(rec.receiver)}</span>`:''} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${items.length} photo${items.length===1?'':'s'}</span></h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:6px">
-          ${items.map(l=>`<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff">
-            <img src="${l.img}" onclick="viewLogImg('${l.id}')" style="width:100%;height:140px;object-fit:cover;cursor:zoom-in;display:block">
+        <h3>🚚 ${esc(k)} ${rec?`<span class="tag">${esc(rec.receiver)}</span>`:''} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${ph.length} photo${ph.length===1?'':'s'} · ${dc.length} doc${dc.length===1?'':'s'}</span></h3>
+        ${dc.length?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:7px">
+          ${dc.map(l=>`<div style="display:flex;align-items:center;gap:11px;border:1px solid var(--border);border-radius:10px;padding:9px 12px;background:#f8fafc">
+            <span style="font-size:22px">${docIcon(l.mime,l.fileName)}</span>
+            <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.fileName||'document')} <span class="tag">${esc(l.category||'Document')}</span></div>
+            <div class="muted" style="font-size:11px">${esc(l.caption||'')}${l.caption?' · ':''}${esc(l.by||'')} · ${fmtDate(l.date)}${l.size?' · '+(l.size/1024|0)+' KB':''}</div></div>
+            <button class="mini-btn" onclick="openAttachment('${l.id}')">⬇ Open</button>
+            ${canDelete()?`<button class="mini-btn del" onclick="delLog('${l.id}')">✕</button>`:''}
+          </div>`).join('')}
+        </div>`:''}
+        ${ph.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-top:10px">
+          ${ph.map(l=>`<div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff">
+            <img src="${logImgSrc(l)}" onclick="viewLogImg('${l.id}')" style="width:100%;height:140px;object-fit:cover;cursor:zoom-in;display:block">
             <div style="padding:9px 11px"><div style="font-size:12.5px;font-weight:600">${esc(l.caption||'(no caption)')}</div>
             <div class="muted" style="font-size:11px;margin-top:3px">${esc(l.by||'')} · ${fmtDate(l.date)}</div>
             ${canDelete()?`<button class="mini-btn del" style="margin-top:7px" onclick="delLog('${l.id}')">Delete</button>`:''}</div>
           </div>`).join('')}
-        </div>
-      </div>`; }).join('') : '<div class="panel"><div class="empty">No delivery photos yet.'+(canEdit()?' Click “Upload photo” to add the first one.':'')+'</div></div>'}
+        </div>`:''}
+      </div>`; }).join('') : '<div class="panel"><div class="empty">No photos or documents yet.'+(canEditModule('logs')?' Use the buttons above to add the first one.':'')+'</div></div>'}
   </div>`);
 }
-function openLog(){ if(!requireEdit())return; _logImg=null;
-  const opts=state.deliveries.map(d=>`<option value="${esc(d.id)}">${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join('');
+function orderOpts(sel){ return state.deliveries.map(d=>`<option value="${esc(d.id)}" ${sel===d.id?'selected':''}>${esc(d.id)} — ${esc(d.receiver||'')}</option>`).join(''); }
+function openLog(){ if(!requireEdit('logs'))return; _logImg=null;
   modal('Upload delivery photo',`<div class="form-grid">
-    <div class="fld full"><label>Order / Delivery Note ID</label><select name="orderId"><option value="">— select order —</option>${opts}</select><div class="hint">Each order can hold multiple photos.</div></div>
+    <div class="fld full"><label>Order / Delivery Note ID</label><select name="orderId"><option value="">— select order —</option>${orderOpts()}</select><div class="hint">Each order can hold multiple photos &amp; documents.</div></div>
     <div class="fld full"><label>Caption / note</label><input name="caption" placeholder="e.g. Installed &amp; handover complete"></div>
     <div class="fld full"><label>Photo</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogImg()">📷 Choose image</button><span id="logImgState" class="muted">No image selected</span></div><div id="logPreview" style="margin-top:10px"></div></div>
   </div>`,
   ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logImg){ toast('Choose an image first','err'); return; }
     const d=state.deliveries.find(x=>x.id===f.orderId);
-    state.logs.unshift({id:uid(),orderId:f.orderId,receiver:d?d.receiver:'',caption:f.caption||'',img:_logImg,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
+    state.logs.unshift({id:uid(),kind:'photo',orderId:f.orderId,receiver:d?d.receiver:'',caption:f.caption||'',data:_logImg,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
     persist(); closeModal(); toast('Photo uploaded','ok'); });
 }
 function chooseLogImg(){ pickImage(1000,'image/jpeg',0.72, du=>{ _logImg=du; const s=document.getElementById('logImgState'); if(s){ s.textContent='✅ Image ready'; s.style.color='var(--success)'; } const p=document.getElementById('logPreview'); if(p) p.innerHTML=`<img src="${du}" style="max-width:100%;max-height:220px;border-radius:10px;border:1px solid var(--border)">`; }); }
-function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${l.img}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
-function delLog(id){ if(!canDelete())return; if(!confirm('Delete this photo?'))return; deleteFrom('logs',id); toast('Deleted'); }
+function openDoc(){ if(!requireEdit('logs'))return; _logDoc=null;
+  modal('Attach document',`<div class="form-grid">
+    <div class="fld full"><label>Order / Delivery Note ID</label><select name="orderId"><option value="">— select order —</option>${orderOpts()}</select></div>
+    <div class="fld"><label>Document type</label><select name="category">${DOC_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
+    <div class="fld"><label>Caption / reference</label><input name="caption" placeholder="optional"></div>
+    <div class="fld full"><label>File</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogDoc()">📎 Choose file</button><span id="logDocState" class="muted">No file selected</span></div>
+      <div class="hint">PDF, Word, Excel or image. Max 4 MB per file — stored in the shared team database, so keep delivery notes scanned at a sensible size.</div></div>
+  </div>`,
+  ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logDoc){ toast('Choose a file first','err'); return; }
+    const d=state.deliveries.find(x=>x.id===f.orderId);
+    state.logs.unshift({id:uid(),kind:'doc',orderId:f.orderId,receiver:d?d.receiver:'',category:f.category||'Document',caption:f.caption||'',fileName:_logDoc.name,mime:_logDoc.mime,size:_logDoc.size,data:_logDoc.data,by:CURRENT_USER,date:new Date().toISOString().slice(0,10),_ts:Date.now()});
+    persist(); closeModal(); toast('Document attached','ok'); });
+}
+function chooseLogDoc(){ pickFile(MAX_DOC_BYTES, fileObj=>{ _logDoc=fileObj; const s=document.getElementById('logDocState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+(fileObj.size/1024|0)+' KB)'; s.style.color='var(--success)'; } }); }
+function pickFile(maxBytes, cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,application/pdf,image/*';
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; if(f.size>maxBytes){ toast('File too large — max 4 MB','err'); return; }
+    const rd=new FileReader(); rd.onload=ev=>cb({name:f.name,mime:f.type||'application/octet-stream',size:f.size,data:ev.target.result}); rd.readAsDataURL(f); }; inp.click(); }
+function openAttachment(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; const a=document.createElement('a'); a.href=l.data; a.download=l.fileName||'attachment'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
+function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${logImgSrc(l)}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
+function delLog(id){ if(!canDelete())return; const l=state.logs.find(x=>x.id===id); if(!confirm('Delete this '+(l&&l.kind==='doc'?'document':'photo')+'?'))return; deleteFrom('logs',id); toast('Deleted'); }
 
 /* ============================================================
    VIEW: EVENT SETUP  (exhibitions / activations — full lifecycle)
@@ -1047,7 +1146,7 @@ function renderEvents(){
       <div class="toolbar">
         <div class="search"><input placeholder="Search events…" value="${esc(evSearch)}" oninput="evSearch=this.value;renderActive()"></div>
         <button class="btn" onclick="exportCSV('events')">⬇ CSV</button>
-        ${canEdit()?`<button class="btn primary" onclick="openEvent()">＋ New event</button>`:''}
+        ${canEditModule('events')?`<button class="btn primary" onclick="openEvent()">＋ New event</button>`:''}
       </div>
     </div>
     <div class="kpi-grid">
@@ -1064,12 +1163,12 @@ function renderEvents(){
         <td>${esc(e.owner||'')}</td><td>${sp(e.status)}</td><td class="note-cell">${esc(e.specialRequest||'')}</td>
         <td class="note-cell">${e.problemReported?`<span class="pill red" style="white-space:normal">${esc(e.problemReported)}</span>`:''}</td>
         <td class="note-cell">${esc(e.outcome||'')}</td><td>${e.cost?money(e.cost):''}</td>
-        <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openEvent('${e.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delEvent('${e.id}')">✕</button>`:''}</td>
+        <td class="actions">${canEditModule('events')?`<button class="mini-btn" onclick="openEvent('${e.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delEvent('${e.id}')">✕</button>`:''}</td>
       </tr>`).join(''):`<tr><td colspan="${cols.length+1}"><div class="empty">No events yet.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
-function openEvent(id){ if(!requireEdit())return; const e=id?state.events.find(x=>x.id===id):{id:nextEventId(),region:'Dubai',status:'Planned',quantity:1};
+function openEvent(id){ if(!requireEdit('events'))return; const e=id?state.events.find(x=>x.id===id):{id:nextEventId(),region:'Dubai',status:'Planned',quantity:1};
   const sel=(n,o,v)=>`<select name="${n}">${['',...o].map(x=>`<option ${String(v||'')===String(x)?'selected':''}>${x}</option>`).join('')}</select>`;
   modal(id?'Edit event — '+e.id:'New event',`<div class="form-grid">
     <div class="fld"><label>Event ID</label><input name="id" value="${esc(e.id)}" readonly></div>
@@ -1108,17 +1207,17 @@ function renderTickets(){
       <div><div class="page-title">Tickets</div><div class="page-sub">Complaint &amp; support tracking · CoreV ⇄ OxeFit</div></div>
       <div class="toolbar">
         <button class="btn" onclick="exportCSV('tickets')">⬇ CSV</button>
-        ${canEdit()?`<button class="btn primary" onclick="openTicket()">＋ New ticket</button>`:''}
+        ${canEditModule('tickets')?`<button class="btn primary" onclick="openTicket()">＋ New ticket</button>`:''}
       </div>
     </div>
     <div class="table-wrap"><table><thead><tr><th>Code</th><th>Serial</th><th>Client</th><th>Date</th><th>Issue</th><th>Latest update</th><th>CoreV status</th><th>OxeFit status</th><th>Reported by</th><th>Assisted by</th><th>Remarks</th><th>⚙</th></tr></thead><tbody>
       ${t.length?t.map(x=>`<tr><td><b>${esc(x.code)}</b></td><td>${esc(x.serial||'')}</td><td>${esc(x.client)}</td><td>${fmtDate(x.date)}</td>
       <td class="note-cell">${esc(x.issue)}</td><td class="note-cell">${esc(x.update||'')}</td><td>${sp(x.statusCoreV)}</td><td>${sp(x.statusOxe)}</td><td>${esc(x.reportedBy)}</td><td>${esc(x.assistedBy)}</td><td class="note-cell">${esc(x.remarks||'')}</td>
-      <td class="actions">${x.client?`<button class="mini-btn" title="Reply in Outlook" onclick="replyOutlook('${x.id}')">↩</button> `:''}${canEdit()?`<button class="mini-btn" onclick="openTicket('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delTicket('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="12"><div class="empty">No tickets logged.</div></td></tr>`}
+      <td class="actions">${x.client?`<button class="mini-btn" title="Reply in Outlook" onclick="replyOutlook('${x.id}')">↩</button> `:''}${canEditModule('tickets')?`<button class="mini-btn" onclick="openTicket('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delTicket('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="12"><div class="empty">No tickets logged.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
-function openTicket(id){ if(!requireEdit())return; const x=id?state.tickets.find(r=>r.id===id):{id:uid(),code:nextTicketCode(),date:new Date().toISOString().slice(0,10),statusCoreV:'OPEN',statusOxe:'OPEN',reportedBy:CURRENT_USER&&COREV_TEAM.includes(CURRENT_USER.toUpperCase())?CURRENT_USER.toUpperCase():''};
+function openTicket(id){ if(!requireEdit('tickets'))return; const x=id?state.tickets.find(r=>r.id===id):{id:uid(),code:nextTicketCode(),date:new Date().toISOString().slice(0,10),statusCoreV:'OPEN',statusOxe:'OPEN',reportedBy:CURRENT_USER&&COREV_TEAM.includes(CURRENT_USER.toUpperCase())?CURRENT_USER.toUpperCase():''};
   const sel=(n,o,v)=>`<select name="${n}">${['',...o].map(t=>`<option ${String(v||'')===t?'selected':''}>${t}</option>`).join('')}</select>`;
   modal(id?'Edit ticket — '+x.code:'New ticket',`<div class="form-grid">
     <div class="fld"><label>Complaint code</label><input name="code" value="${esc(x.code)}"></div>
@@ -1151,7 +1250,7 @@ function renderReviews(){
       <div class="toolbar">
         <button class="btn ${googleToken?'':'primary'}" onclick="connectGoogle()">${googleToken?'✅ Google connected':'🔗 Connect Google'}</button>
         <button class="btn" onclick="fetchGoogleReviews()" ${googleToken?'':'disabled title="Connect Google first"'}>⬇ Fetch reviews</button>
-        ${canEdit()?`<button class="btn primary" onclick="openReview()">＋ Review</button>`:''}
+        ${canEditModule('reviews')?`<button class="btn primary" onclick="openReview()">＋ Review</button>`:''}
       </div>
     </div>
     <div class="kpi-grid">
@@ -1169,11 +1268,11 @@ function renderReviews(){
     </div>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Rating</th><th>Source</th><th>Comment</th><th>Delivery</th><th>⚙</th></tr></thead><tbody>
       ${r.length?r.map(x=>`<tr><td>${fmtDate(x.date)}</td><td><b>${esc(x.client)}</b></td><td style="color:#f59e0b;font-size:15px">${stars(x.rating)}</td><td><span class="tag">${esc(x.source||'Manual')}</span></td><td class="note-cell">${esc(x.comment||'')}</td><td>${esc(x.deliveryId||'')}</td>
-      <td class="actions">${canEdit()?`<button class="mini-btn" onclick="openReview('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delReview('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">No reviews yet.</div></td></tr>`}
+      <td class="actions">${canEditModule('reviews')?`<button class="mini-btn" onclick="openReview('${x.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delReview('${x.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="7"><div class="empty">No reviews yet.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
 }
-function openReview(id){ if(!requireEdit())return; const x=id?state.reviews.find(r=>r.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),rating:5,source:'Manual'};
+function openReview(id){ if(!requireEdit('reviews'))return; const x=id?state.reviews.find(r=>r.id===id):{id:uid(),date:new Date().toISOString().slice(0,10),rating:5,source:'Manual'};
   modal(id?'Edit review':'New review',`<div class="form-grid">
     <div class="fld"><label>Date</label><input type="date" name="date" value="${esc(x.date||'')}"></div>
     <div class="fld"><label>Client</label><input name="client" value="${esc(x.client||'')}"></div>
@@ -1268,7 +1367,7 @@ function xlDate(v){ if(!v&&v!==0) return ''; if(v instanceof Date) return v.toIS
 function pickFirst(r,keys){ for(const k of keys){ if(r[k]!=null && r[k]!=='') return r[k]; } return ''; }
 
 function importDeliveriesExcel(){
-  if(!requireEdit()) return;
+  if(!requireEdit('deliveries')) return;
   pickExcel(wb=>{
     const sn = wb.SheetNames.find(n=>/stock movement/i.test(n)) || wb.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {defval:''});
@@ -1309,7 +1408,7 @@ function importDeliveriesExcel(){
   });
 }
 function importCostingExcel(){
-  if(!requireEdit()) return;
+  if(!requireEdit('shipping')) return;
   pickExcel(wb=>{
     const sn = wb.SheetNames.find(n=>/costing|cost|shipping/i.test(n)) || wb.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {defval:''});
@@ -1355,9 +1454,10 @@ function showSetup(){
    auto-syncs across all team members.
 
 Roles are fixed in code:
-   Ahmed = Admin (full control + delete)
-   Charlie, Prem, Gladys, Sami, Kamal = Operational (add/modify)
-   Any other authorized account = read-only Viewer</div>`,null);
+   Ahmed, Gladys = Admin (full control + delete + branding)
+   Charlie, Prem = Contributor (add/modify in Deliveries,
+                   Spares & Stock, and Logs & Images only)
+   Everyone else authorized = read-only Viewer</div>`,null);
 }
 
 /* ─────────── START ─────────── */
