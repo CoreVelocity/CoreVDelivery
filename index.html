@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.0</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.1</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.0</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.1</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.0</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.1</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -291,8 +291,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.0
-   Build: v2.0 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.1
+   Build: v2.1 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -950,7 +950,7 @@ function delDelivery(id){ if(!canDelete())return; if(!confirm('Delete delivery '
 /* ============================================================
    VIEW: SPARES & STOCK  (inventory + accessories issued log)
 ============================================================ */
-let spareTab='stock';
+let spareTab='stock', stockCat='ALL', stockReorder=false, stockSearch='', issueSearch='';
 function renderSpares(){
   const main=document.getElementById('mainContent');
   main.insertAdjacentHTML('beforeend',`
@@ -964,24 +964,39 @@ function renderSpares(){
         ${canEditModule('spares')&&spareTab==='issued'?`<button class="btn primary" onclick="openIssue()">＋ Issue</button>`:''}
       </div>
     </div>
+    ${spareTab==='stock'?`
+    <div class="filter-pills">
+      <button class="filter-pill ${stockCat==='ALL'?'active':''}" onclick="stockCat='ALL';renderActive()">All <span class="muted">${state.stock.length}</span></button>
+      ${STOCK_CATS.map(c=>`<button class="filter-pill ${stockCat===c?'active':''}" onclick="stockCat='${c}';renderActive()">${esc(c)} <span class="muted">${state.stock.filter(s=>s.cat===c).length}</span></button>`).join('')}
+      <button class="filter-pill ${stockReorder?'active':''}" style="${stockReorder?'background:var(--danger);border-color:var(--danger)':''}" onclick="stockReorder=!stockReorder;renderActive()">🔴 Reorder only <span class="muted">${state.stock.filter(s=>qtyInStock(s)<=s.min).length}</span></button>
+      <div class="search" style="margin-left:auto"><input placeholder="Search product, SKU, supplier…" value="${esc(stockSearch)}" oninput="stockSearch=this.value;renderActive()"></div>
+    </div>`:`
+    <div class="filter-pills"><div class="search" style="margin-left:auto"><input placeholder="Search client, item, region…" value="${esc(issueSearch)}" oninput="issueSearch=this.value;renderActive()"></div></div>`}
     <div id="spareBody"></div>
   </div>`);
   const body=document.getElementById('spareBody');
   if(spareTab==='stock'){
-    const cats=STOCK_CATS;
-    body.innerHTML = cats.map(cat=>{
-      const items=state.stock.filter(s=>s.cat===cat);
+    const cats=stockCat==='ALL'?STOCK_CATS:[stockCat];
+    const q=stockSearch.toLowerCase();
+    const match=s=>(!stockReorder||qtyInStock(s)<=s.min) && (!q||((s.product||'')+' '+(s.sku||'')+' '+(s.supplier||'')).toLowerCase().includes(q));
+    let shown=0;
+    const html=cats.map(cat=>{
+      const items=state.stock.filter(s=>s.cat===cat && match(s));
       if(!items.length) return '';
-      return `<div class="panel" style="margin-bottom:14px"><h3>${cat==='Fitness Equipment'?'🏋️':cat==='Accessories'?'🎒':'🔧'} ${cat}</h3>
+      shown+=items.length;
+      return `<div class="panel" style="margin-bottom:14px"><h3>${cat==='Fitness Equipment'?'🏋️':cat==='Accessories'?'🎒':'🔧'} ${cat} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${items.length}</span></h3>
       <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Product</th><th>SKU</th><th>Supplier</th><th>Received</th><th>Moved</th><th>In Stock</th><th>Min</th><th>Reorder?</th><th>⚙</th></tr></thead><tbody>
-      ${items.map(s=>{const q=qtyInStock(s);const re=q<=s.min;return `<tr><td><b>${esc(s.product)}</b></td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${q}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
+      ${items.map(s=>{const qn=qtyInStock(s);const re=qn<=s.min;return `<tr><td><b>${esc(s.product)}</b></td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${qn}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
       <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openStock('${s.id}')">Edit</button> <button class="mini-btn" onclick="openMove('${s.id}')">Move</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delStock('${s.id}')">✕</button>`:''}</td></tr>`;}).join('')}
       </tbody></table></div></div>`;
     }).join('');
+    body.innerHTML = shown? html : '<div class="panel"><div class="empty">No stock items match the current filter.</div></div>';
   } else {
+    const q=issueSearch.toLowerCase();
+    const rows=state.accessories.filter(a=>!q||JSON.stringify(a).toLowerCase().includes(q));
     body.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Date</th><th>Client</th><th>Region</th><th>Accessory / Spare</th><th>Qty</th><th>⚙</th></tr></thead><tbody>
-      ${state.accessories.length?state.accessories.map(a=>`<tr><td>${fmtDate(a.date)}</td><td><b>${esc(a.client)}</b></td><td><span class="tag">${esc(a.region)}</span></td><td>${esc(a.item)}</td><td>${a.qty}</td>
-      <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openIssue('${a.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delIssue('${a.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No issued items logged.</div></td></tr>`}
+      ${rows.length?rows.map(a=>`<tr><td>${fmtDate(a.date)}</td><td><b>${esc(a.client)}</b></td><td><span class="tag">${esc(a.region)}</span></td><td>${esc(a.item)}</td><td>${a.qty}</td>
+      <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openIssue('${a.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delIssue('${a.id}')">✕</button>`:''}</td></tr>`).join(''):`<tr><td colspan="6"><div class="empty">No issued items match.</div></td></tr>`}
     </tbody></table></div>`;
   }
 }
