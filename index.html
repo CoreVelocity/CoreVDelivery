@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.3</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.4</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +228,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.3</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.4</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +251,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.3</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.4</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -292,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.3
-   Build: v2.3 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.4
+   Build: v2.4 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -367,7 +368,7 @@ const EVENT_UNITS  = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1','Multi
 const SHIP_METHODS   = ['Air','Sea','Courier'];
 const INBOUND_STATUS = ['Ordered','Shipped','In Transit','Customs Clearance','Received'];
 const ORIGIN_COUNTRIES = ['USA','China','Germany','UK','UAE','India','Other'];
-const DOC_CATEGORIES = ['Warehouse Agreement','Contract','Ejari','Shipment Document','Trade License','Insurance','Warranty Certificate','Installation Report','PPM Report','EST Certificate','Other'];
+const DOC_CATEGORIES = ['Warehouse Agreement','Contract','Ejari','Shipment Document','Trade License','Insurance','Warranty Certificate','Installation Report','PPM Report','PPM Service Report','EST Certificate','Other'];
 const APPROVAL_STATUS = ['Pending','Approved','Rejected'];
 /* Fixed company details used across generated certificates & reports */
 const COMPANY={ name:'Core Velocity Sports Machine Trading L.L.C.', installer:'Core Velocity Sport machine Trading L.L.C', manufacturer:'OxeFit, Inc.', address:'Court Tower, Office 403 – Business Bay, Dubai, UAE', email:'service@corevelocity.com', phone:'+971 50 330 4196' };
@@ -1201,7 +1202,7 @@ function openDocument(id){ if(!requireEdit('documents'))return; _vaultFile=null;
     <div class="fld"><label>Expiry / renewal date (optional)</label><input type="date" name="expiryDate" value="${esc(d.expiryDate||'')}"></div>
     <div class="fld full"><label>Notes / remarks</label><textarea name="notes" rows="2">${esc(d.notes||'')}</textarea></div>
     <div class="fld full"><label>File ${id?'(leave empty to keep current)':''}</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseVaultFile()">📎 Choose file</button><span id="vaultFileState" class="muted">${id&&d.fileName?'Current: '+esc(d.fileName):'No file selected'}</span></div>
-      <div class="hint">PDF, Word, Excel or image. Max 4 MB — stored in the shared team database.</div></div>
+      <div class="hint">PDF, Word, Excel or image — stored in the shared team database.</div></div>
   </div>`,
   ()=>{ const f=getForm(); if(!id && !_vaultFile){ toast('Choose a file first','err'); return; }
     const rec={ title:f.title||(_vaultFile&&_vaultFile.name)||'Document', category:f.category, expiryDate:f.expiryDate||'', notes:f.notes||'', by:CURRENT_USER, date:(d.date||new Date().toISOString().slice(0,10)), _ts:Date.now() };
@@ -1216,7 +1217,14 @@ function delDocument(id){ if(!canDelete())return; if(!confirm('Delete this docum
 /* ============================================================
    VIEW: CERTIFICATES & REPORTS  (generate from delivery + client details)
 ============================================================ */
-const CERT_TYPES=['Installation Report','Warranty Certificate','PPM Report','EST Certificate'];
+const CERT_TYPES=['Installation Report','Warranty Certificate','PPM Report','PPM Service Report','EST Certificate'];
+/* Tasks ticked off during a scheduled PPM visit (grouped) */
+const PPM_CHECKS=[
+  ['Mechanical Inspection', ['Frame & structure inspection','Cables, belts & pulleys inspection','Fasteners / bolts torque check','Wheels, rollers & moving parts','Lubrication of moving parts']],
+  ['Electrical Checks', ['Power cable & connector inspection','Earth continuity / grounding check','Emergency stop function test','Power supply / voltage check']],
+  ['Software & Calibration', ['Software version & update check','APEX & OxeLead connectivity','Sensor calibration (OxeDot / loadcell)','System calibration completed','Diagnostics / error-log review']],
+  ['Safety Verification', ['Safety guards & covers secure','Warning labels present & legible','Functional test workout executed','General cleaning & housekeeping']]
+];
 let certType='Installation Report', certOrderId='';
 function certVal(name){ const el=document.querySelector('#certForm [name="'+name+'"]'); if(!el) return ''; if(el.type==='checkbox') return el.checked; return el.value; }
 function addYearsEnd(start,years){ if(!start) return ''; const d=new Date(start); if(isNaN(d)) return ''; d.setFullYear(d.getFullYear()+Number(years)); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); }
@@ -1245,6 +1253,19 @@ function renderCertificates(){
     ${fld('Effective date','effectiveDate',p.date||new Date().toISOString().slice(0,10),'date')}
     ${fld('PPM visits per year','visits','2','number')}
     ${fld('Validity (years)','validity','1','number')}`;
+  else if(certType==='PPM Service Report'){ let ci=0;
+    const checksHtml=PPM_CHECKS.map(grp=>`<div style="grid-column:1/-1;font-weight:700;font-size:12px;color:var(--accent2);margin-top:8px">${esc(grp[0])}</div>`+grp[1].map(it=>{const n=ci++;return `<label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500"><input type="checkbox" name="chk${n}" checked style="width:auto"> ${esc(it)}</label>`;}).join('')).join('');
+    specific=`
+    ${fld('Visit date','visitDate',p.date||new Date().toISOString().slice(0,10),'date')}
+    ${fld('Visit number','visitNo','1 of 2')}
+    ${fld('Technician / Engineer','technician',p.onsiteRep)}
+    ${fld('Next visit due','nextVisit','','date')}
+    <div class="fld full"><label>Maintenance checklist — tick = checked / OK</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:4px;border:1px solid var(--border);border-radius:10px;padding:10px 14px">${checksHtml}</div>
+    </div>
+    ${sel('Overall result','result',['Completed','Follow-up required'],'Completed')}
+    <div class="fld full"><label>Findings &amp; recommendations</label><textarea name="findings" rows="3"></textarea></div>`;
+  }
   else specific=`
     ${fld('Certificate No','certNo',genNo('COREV-'))}
     ${fld('Date of test','testDate',p.date||new Date().toISOString().slice(0,10),'date')}
@@ -1346,6 +1367,18 @@ function buildPPM(g){ return ''
   + sec('8. Validity', `<p>This PPM Schedule is valid for ${esc(g.validity)} calendar year(s) from the effective date.</p>`)
   + sec('9. Acceptance', `<p>By acceptance, the Customer agrees to the scope and terms outlined in this document.</p>`+signBlock());
 }
+function buildPPMReport(g){ let ci=0;
+  const groups=PPM_CHECKS.map(grp=>{
+    const rows=grp[1].map(it=>{ const on=g.checks[ci++]; return `<tr><td style="width:30px;text-align:center;font-size:16px">${on?'☑':'☐'}</td><td>${it}</td></tr>`; }).join('');
+    return `<h2 class="doc-h">${grp[0]}</h2><table class="grid"><tbody>${rows}</tbody></table>`;
+  }).join('');
+  return ''
+  + `<p class="muted">OxeFit – Planned Preventive Maintenance (PPM) Service Report — issued after a scheduled maintenance visit.</p>`
+  + sec('Visit Details', kv([['Customer / End User:',esc(g.customer)],['Equipment / Model:',esc(g.model)],['Serial Number(s):',esc(g.serial)],['Installation Address:',esc(g.address)],['Visit Date:',fmtDate(g.visitDate)],['Visit Number:',esc(g.visitNo)],['Technician / Engineer:',esc(g.technician)],['Next Visit Due:',fmtDate(g.nextVisit)],['Overall Result:',`<b>${esc(g.result)}</b>`]]))
+  + sec('Maintenance Checklist', `<p class="muted">☑ = checked / OK &nbsp;&nbsp; ☐ = not performed / needs attention</p>`+groups)
+  + sec('Findings & Recommendations', `<div class="box">${esc(g.findings||'No issues found. Equipment operating within normal parameters.')}</div>`)
+  + sec('Acceptance', `<p>The above Planned Preventive Maintenance visit was carried out as per OxeFit standards.</p>`+signBlock());
+}
 function buildEST(g){ return ''
   + kv([['Certificate No:',esc(g.certNo)],['Date of Test:',fmtDate(g.testDate)]])
   + sec('1. Equipment Information', kv([['Equipment Name:',esc(g.model)],['Equipment Type:','AI-Powered Strength & Performance Training System'],['Manufacturer:',COMPANY.manufacturer],['Model',esc(g.model)],['Serial Number(s):',esc(g.serial)],['Quantity Installed:',esc(g.qty)],['Customer / End User:',esc(g.customer)],['Installation location',esc(g.address)]]))
@@ -1365,6 +1398,7 @@ function buildCertHtml(){
     title='OxeFit Installation Report — '+(g.customer||''); body=buildInstallation(g,photos); }
   else if(certType==='Warranty Certificate'){ g.certNo=certVal('certNo'); g.issueDate=certVal('issueDate')||g.date; g.warrantyStart=certVal('warrantyStart')||g.date; g.years=Number(certVal('years'))||5; expiry=addYearsEnd(g.warrantyStart,g.years); title='OxeFit Plus Warranty Certificate — '+(g.customer||''); body=buildWarranty(g); }
   else if(certType==='PPM Report'){ g.effectiveDate=certVal('effectiveDate')||g.date; g.visits=certVal('visits')||'2'; g.validity=certVal('validity')||'1'; title='OxeFit PPM Report — '+(g.customer||''); body=buildPPM(g); }
+  else if(certType==='PPM Service Report'){ const checks=[]; let n=0; PPM_CHECKS.forEach(grp=>grp[1].forEach(()=>{ checks.push(!!certVal('chk'+n)); n++; })); g.checks=checks; g.visitDate=certVal('visitDate')||g.date; g.visitNo=certVal('visitNo'); g.technician=certVal('technician'); g.nextVisit=certVal('nextVisit'); g.result=certVal('result'); g.findings=certVal('findings'); title='OxeFit PPM Service Report — '+(g.customer||''); body=buildPPMReport(g); }
   else { g.certNo=certVal('certNo'); g.testDate=certVal('testDate')||g.date; g.supply=certVal('supply'); g.phase=certVal('phase'); g.power=certVal('power'); g.earthing=certVal('earthing'); g.plug=certVal('plug'); g.outcome=certVal('outcome'); g.remarks=certVal('remarks'); title='OxeFit EST Certificate — '+(g.customer||''); body=buildEST(g); }
   return {title, body, expiry};
 }
@@ -1514,7 +1548,7 @@ function openDoc(){ if(!requireEdit('logs'))return; _logDoc=null;
     <div class="fld"><label>Document type</label><select name="category">${DOC_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>
     <div class="fld"><label>Caption / reference</label><input name="caption" placeholder="optional"></div>
     <div class="fld full"><label>File</label><div style="display:flex;gap:12px;align-items:center"><button class="btn" type="button" onclick="chooseLogDoc()">📎 Choose file</button><span id="logDocState" class="muted">No file selected</span></div>
-      <div class="hint">PDF, Word, Excel or image. Max 4 MB per file — stored in the shared team database, so keep delivery notes scanned at a sensible size.</div></div>
+      <div class="hint">PDF, Word, Excel or image — stored in the shared team database. Very large files may slow syncing.</div></div>
   </div>`,
   ()=>{ const f=getForm(); if(!f.orderId){ toast('Select an order','err'); return; } if(!_logDoc){ toast('Choose a file first','err'); return; }
     const d=state.deliveries.find(x=>x.id===f.orderId);
@@ -1523,7 +1557,7 @@ function openDoc(){ if(!requireEdit('logs'))return; _logDoc=null;
 }
 function chooseLogDoc(){ pickFile(MAX_DOC_BYTES, fileObj=>{ _logDoc=fileObj; const s=document.getElementById('logDocState'); if(s){ s.textContent='✅ '+fileObj.name+' ('+(fileObj.size/1024|0)+' KB)'; s.style.color='var(--success)'; } }); }
 function pickFile(maxBytes, cb){ const inp=document.createElement('input'); inp.type='file'; inp.accept='.pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,application/pdf,image/*';
-  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; if(f.size>maxBytes){ toast('File too large — max 4 MB','err'); return; }
+  inp.onchange=e=>{ const f=e.target.files[0]; if(!f) return; if(f.size>15*1024*1024){ toast('Large file ('+(f.size/1048576|0)+' MB) — sync may be slower','err'); }
     const rd=new FileReader(); rd.onload=ev=>cb({name:f.name,mime:f.type||'application/octet-stream',size:f.size,data:ev.target.result}); rd.readAsDataURL(f); }; inp.click(); }
 function openAttachment(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; const a=document.createElement('a'); a.href=l.data; a.download=l.fileName||'attachment'; a.target='_blank'; a.rel='noopener'; document.body.appendChild(a); a.click(); a.remove(); }
 function viewLogImg(id){ const l=state.logs.find(x=>x.id===id); if(!l) return; modal(esc(l.orderId)+' — '+esc(l.caption||'photo'),`<img src="${logImgSrc(l)}" style="width:100%;border-radius:10px"><div class="muted" style="margin-top:8px;font-size:12px">Uploaded by ${esc(l.by||'')} on ${fmtDate(l.date)}</div>`,null,true); }
