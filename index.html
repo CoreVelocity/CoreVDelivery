@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.6</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.7</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.6</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.7</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.6</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.7</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.6
-   Build: v2.6 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.7
+   Build: v2.7 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -480,7 +480,7 @@ function regionBucket(rec){
   return 'Others';
 }
 const REGION_BUCKETS=['Dubai','Abu Dhabi','Others'];
-function toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2600); }
+function toast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show '+(type||''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast', type==='err'?5200:2600); }
 
 /* image → resized data URL (keeps the synced JSON small) */
 function fileToResized(file,maxDim,type,quality,cb){
@@ -639,18 +639,25 @@ async function loginWithMicrosoft(){
     const res = await msalInstance.loginPopup({ scopes:ONEDRIVE_CONFIG.scopes, prompt:'select_account' });
     msalAccount = res.account; ONLINE=true;
     const email=(msalAccount.username||'').toLowerCase().trim();
-    setSync('syncing','Connecting…');
-    // pull the latest shared data (incl. the access-control list) BEFORE deciding access
-    try{ const tok=await getToken(); const r=await fetchRemote(tok); if(r&&r.status===200&&r.data&&r.data.deliveries){ mergeState(r.data); saveLocal(); } }catch(e){ console.warn('pre-login sync',e); }
     ensureAcl();
-    const u=resolveUser(email);
-    if(!u){ try{ await msalInstance.logoutPopup({account:msalAccount}); }catch(_){} ONLINE=false; toast('Your account isn\'t on the team yet — ask an admin to add you in Access Control','err'); return; }
+    // 1) admit known members immediately from the local roster (no network — fast & reliable)
+    let u=resolveUser(email);
+    // 2) only if unknown here, try loading the shared ACL (covers members added by an admin)
+    if(!u){
+      setSync('syncing','Checking access…');
+      let tok=null; try{ tok=(await msalInstance.acquireTokenSilent({scopes:ONEDRIVE_CONFIG.scopes,account:msalAccount})).accessToken; }catch(_){}
+      if(tok){ try{ const r=await fetchRemote(tok); if(r&&r.status===200&&r.data&&r.data.acl){ if((r.data.aclTs||0)>=(state.aclTs||0)){ state.acl=r.data.acl; state.aclTs=r.data.aclTs||Date.now(); saveLocal(); } } }catch(e){ console.warn('acl lookup',e); } }
+      u=resolveUser(email);
+    }
+    if(!u){ try{ await msalInstance.logoutPopup({account:msalAccount}); }catch(_){} ONLINE=false; toast("Account not on the team: "+email+" — an admin must add this exact email in Access Control",'err'); return; }
     CURRENT_USER=u.name; CURRENT_ROLE=u.role;
-    enterApp();
+    setSync('syncing','Connecting…');
+    enterApp();                                   // in immediately
     try{ await downloadFromOneDrive(); }catch(e){ console.warn(e); }
-    setSync('connected','Synced');
-    updateTicketBadge();
-  }catch(e){ console.warn(e); toast('Sign-in cancelled','err'); }
+    const u2=resolveUser(email);                  // re-apply role in case an admin changed it
+    if(u2 && (u2.role!==CURRENT_ROLE)){ CURRENT_ROLE=u2.role; enterApp(); }
+    setSync('connected','Synced'); updateTicketBadge();
+  }catch(e){ console.warn('login',e); toast('Sign-in was cancelled or failed','err'); }
 }
 async function getToken(scopes){
   const req={ scopes:scopes||ONEDRIVE_CONFIG.scopes, account:msalAccount };
