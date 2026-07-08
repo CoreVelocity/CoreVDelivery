@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v2.7</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v2.8</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +228,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v2.7</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v2.8</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +251,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v2.7</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v2.8</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.7
-   Build: v2.7 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v2.8
+   Build: v2.8 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1284,7 +1285,7 @@ function renderAccess(){
       ${users.map(u=>`<tr><td><b>${esc(u.name)}</b>${u.name===CURRENT_USER?' <span class="tag">you</span>':''}</td><td>${esc(u.email||'')}</td>
         <td><span class="role-badge ${u.role==='admin'?'admin':'ops'}">${u.role==='admin'?'Admin':'Member'}</span></td>
         <td>${summary(u)}</td>
-        <td class="actions"><button class="mini-btn" onclick="editAccess('${esc(u.name)}')">Edit access</button> <button class="mini-btn del" onclick="removeMember('${esc(u.name)}')">✕</button></td></tr>`).join('')}
+        <td class="actions"><button class="mini-btn" onclick="toggleRole('${esc(u.name)}')">${u.role==='admin'?'↓ Make Member':'↑ Make Admin'}</button> <button class="mini-btn" onclick="editAccess('${esc(u.name)}')">Edit access</button> <button class="mini-btn del" onclick="removeMember('${esc(u.name)}')">✕</button></td></tr>`).join('')}
       </tbody></table></div>
     </div>
     <div class="panel"><h3>🔎 Access matrix</h3><div class="p-sub">Read-only overview — Admin = full access. Use “Edit access” to change.</div>
@@ -1307,6 +1308,18 @@ function addMember(){ if(CURRENT_ROLE!=='admin')return;
     state.acl.users.push({name,email,role:f.role==='admin'?'admin':'member'});
     state.acl.perms[name]={}; SECTIONS.forEach(([k])=>state.acl.perms[name][k]='view');
     state.aclTs=Date.now(); persist(); closeModal(); toast('Member added','ok'); });
+}
+function toggleRole(name){ if(CURRENT_ROLE!=='admin') return; const u=state.acl.users.find(x=>x.name===name); if(!u) return;
+  if(u.role==='admin'){
+    if(state.acl.users.filter(x=>x.role==='admin').length<=1){ toast('At least one admin is required','err'); return; }
+    if(!confirm('Move '+name+' from Admin to Member?\nThey will get view-only access until you grant Edit per section.')) return;
+    u.role='member'; state.acl.perms[name]={}; SECTIONS.forEach(([k])=>state.acl.perms[name][k]='view');
+  } else {
+    if(!confirm('Make '+name+' an Admin?\nAdmins have full access to every section and can manage access.')) return;
+    u.role='admin';
+  }
+  state.aclTs=Date.now(); persist(); toast(name+' is now '+(u.role==='admin'?'an Admin':'a Member'),'ok');
+  if(name===CURRENT_USER){ CURRENT_ROLE=u.role; enterApp(); }
 }
 function editAccess(name){ if(CURRENT_ROLE!=='admin')return; const u=state.acl.users.find(x=>x.name===name); if(!u) return; const p=state.acl.perms[name]||{};
   const seg=(k)=>`<div class="fld" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0"><label style="margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)">${SECTIONS.find(s=>s[0]===k)[1]}</label>
