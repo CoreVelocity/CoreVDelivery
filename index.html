@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.2</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.3</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.2</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.3</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.2</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.3</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.2
-   Build: v3.2 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.3
+   Build: v3.3 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -400,7 +400,7 @@ const EVENT_UNITS  = ['XS1 FLOW','XS1 FLOW+','XS1 PEAK','XS1 PEAK+','XP1','Multi
 const SHIP_METHODS   = ['Air','Sea','Courier'];
 const INBOUND_STATUS = ['Ordered','Shipped','In Transit','Customs Clearance','Received'];
 const ORIGIN_COUNTRIES = ['USA','China','Germany','UK','UAE','India','Other'];
-const DOC_CATEGORIES = ['Warehouse Agreement','Contract','Ejari','Shipment Document','Trade License','Insurance','Warranty Certificate','Installation Report','PPM Report','PPM Service Report','EST Certificate','Other'];
+const DOC_CATEGORIES = ['Warehouse Agreement','Contract','Ejari','Shipment Document','Trade License','Insurance','Warranty Certificate','Installation Report','Installation Checklist','PPM Report','PPM Service Report','EST Certificate','CE/FDA Certificate','FSE Training Certificate','Other'];
 const APPROVAL_STATUS = ['Pending','Approved','Rejected'];
 /* Fixed company details used across generated certificates & reports */
 const COMPANY={ name:'Core Velocity Sports Machine Trading L.L.C.', installer:'Core Velocity Sport machine Trading L.L.C', manufacturer:'OxeFit, Inc.', address:'Court Tower, Office 403 – Business Bay, Dubai, UAE', email:'service@corevelocity.com', phone:'+971 50 330 4196' };
@@ -1451,8 +1451,17 @@ function removeMember(name){ if(CURRENT_ROLE!=='admin')return; if(name===CURRENT
 /* ============================================================
    VIEW: CERTIFICATES & REPORTS  (generate from delivery + client details)
 ============================================================ */
-const CERT_TYPES=['Installation Report','Warranty Certificate','PPM Report','PPM Service Report','EST Certificate'];
+const CERT_TYPES=['Installation Report','Installation Checklist','Warranty Certificate','PPM Report','PPM Service Report','EST Certificate','CE/FDA Certificate','FSE Training Certificate'];
 /* Tasks ticked off during a scheduled PPM visit (grouped) */
+const INSTALL_CHECKS=[
+  ['Site Readiness', ['Floor space compliant','Floor leveling confirmed','Ceiling height compliant','Power supply available','Internet connectivity available','Access route clear']],
+  ['Equipment Delivery & Inspection', ['Equipment delivered as per order','Packaging in good condition','Accessories complete','No transport damage']],
+  ['Installation', ['Positioning completed','Assembly completed','Anchoring verified','Power connected','Network configured','Safety checks completed']],
+  ['Software, Calibration & Setup', ['Software updated & activated','OxeFit APEX & OxeLead initialized','User profiles configured','Calibration completed','Test workout executed']]
+];
+const FSE_MODULES=[
+  ['Training Modules Completed', ['Product overview & specifications','Mechanical assembly & installation','Electrical safety & power requirements','Software setup, activation & calibration','Diagnostics & troubleshooting','Preventive maintenance (PPM)','Spare parts & accessory handling','Safety procedures & emergency stop','Customer handover & onboarding']]
+];
 const PPM_CHECKS=[
   ['Mechanical Inspection', ['Frame & structure inspection','Cables, belts & pulleys inspection','Fasteners / bolts torque check','Wheels, rollers & moving parts','Lubrication of moving parts']],
   ['Electrical Checks', ['Power cable & connector inspection','Earth continuity / grounding check','Emergency stop function test','Power supply / voltage check']],
@@ -1499,6 +1508,40 @@ function renderCertificates(){
     </div>
     ${sel('Overall result','result',['Completed','Follow-up required'],'Completed')}
     <div class="fld full"><label>Findings &amp; recommendations</label><textarea name="findings" rows="3"></textarea></div>`;
+  }
+  else if(certType==='Installation Checklist'){ let ci=0;
+    const checksHtml=INSTALL_CHECKS.map(grp=>`<div style="grid-column:1/-1;font-weight:700;font-size:12px;color:var(--accent2);margin-top:8px">${esc(grp[0])}</div>`+grp[1].map(it=>{const n=ci++;return `<label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500"><input type="checkbox" name="chk${n}" checked style="width:auto"> ${esc(it)}</label>`;}).join('')).join('');
+    specific=`
+    ${fld('Checklist / Report No','reportNo',genNo('INST-'))}
+    ${fld('Installed / checked by','installer',p.onsiteRep||COMPANY.installer)}
+    <div class="fld full"><label>Installation checklist — tick = done / OK</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:4px;border:1px solid var(--border);border-radius:10px;padding:10px 14px">${checksHtml}</div></div>
+    ${sel('Result','result',['Passed','Failed','Pending'],'Passed')}
+    <div class="fld full"><label>Remarks</label><textarea name="remarks" rows="2">N/A</textarea></div>`;
+  }
+  else if(certType==='CE/FDA Certificate'){ specific=`
+    ${fld('Certificate No','certNo',genNo('COREV-CE-'))}
+    ${fld('Date of issue','issueDate',p.date||new Date().toISOString().slice(0,10),'date')}
+    ${fld('Manufacturer','manufacturer',COMPANY.manufacturer)}
+    ${fld('FDA registration / listing No (if any)','fdaNo','')}
+    <div class="fld full"><label>Applicable CE directives</label><input name="ceDirectives" value="Machinery 2006/42/EC; EMC 2014/30/EU; Low Voltage 2014/35/EU; RoHS 2011/65/EU"></div>
+    <div class="fld full"><label>Harmonized standards applied</label><input name="ceStandards" value="EN 60335-1; EN 62368-1; EN 55032; EN 55035; EN IEC 63000"></div>
+    <div class="fld full"><label>Declaration statement</label><textarea name="declaration" rows="3">We hereby declare, under our sole responsibility, that the equipment described above conforms to the applicable EU directives and harmonized standards listed, and, where applicable, is registered/listed with the U.S. Food &amp; Drug Administration (FDA).</textarea></div>`;
+  }
+  else if(certType==='FSE Training Certificate'){ let ci=0;
+    const modHtml=FSE_MODULES.map(grp=>`<div style="grid-column:1/-1;font-weight:700;font-size:12px;color:var(--accent2);margin-top:8px">${esc(grp[0])}</div>`+grp[1].map(it=>{const n=ci++;return `<label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:500"><input type="checkbox" name="chk${n}" checked style="width:auto"> ${esc(it)}</label>`;}).join('')).join('');
+    specific=`
+    ${fld('Certificate No','certNo',genNo('COREV-FSE-'))}
+    ${fld('Date of issue','issueDate',new Date().toISOString().slice(0,10),'date')}
+    ${fld('Trainee name','trainee','')}
+    ${fld('Trainer / Instructor','trainer','')}
+    ${fld('Training location','location','')}
+    ${fld('Training from','trainFrom','','date')}
+    ${fld('Training to','trainTo','','date')}
+    ${fld('Certificate validity (years)','validity','2','number')}
+    <div class="fld full"><label>Modules covered — tick = completed</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;margin-top:4px;border:1px solid var(--border);border-radius:10px;padding:10px 14px">${modHtml}</div></div>
+    ${sel('Result','result',['Passed','Completed','Failed'],'Passed')}`;
   }
   else specific=`
     ${fld('Certificate No','certNo',genNo('COREV-'))}
@@ -1613,6 +1656,32 @@ function buildPPMReport(g){ let ci=0;
   + sec('Findings & Recommendations', `<div class="box">${esc(g.findings||'No issues found. Equipment operating within normal parameters.')}</div>`)
   + sec('Acceptance', `<p>The above Planned Preventive Maintenance visit was carried out as per OxeFit standards.</p>`+signBlock());
 }
+function buildInstallChecklist(g){ let ci=0;
+  const groups=INSTALL_CHECKS.map(grp=>{ const rows=grp[1].map(it=>{ const on=g.checks[ci++]; return `<tr><td style="width:30px;text-align:center;font-size:16px">${on?'☑':'☐'}</td><td>${it}</td></tr>`; }).join(''); return `<h2 class="doc-h">${grp[0]}</h2><table class="grid"><tbody>${rows}</tbody></table>`; }).join('');
+  return ''
+  + sec('Installation Checklist', kv([['Checklist / Report No:',esc(g.reportNo)],['Date:',fmtDate(g.date)],['Customer / End User:',esc(g.customer)],['Installation Address:',esc(g.address)],['OxeFit Model:',esc(g.model)],['Serial Number(s):',esc(g.serial)],['Installed / Checked by:',esc(g.installer)]]))
+  + `<p class="muted">☑ = done / OK &nbsp;&nbsp; ☐ = not done / needs attention</p>`+groups
+  + sec('Result', `<p><b>${esc(g.result)}</b></p>`)
+  + sec('Remarks', `<div class="box">${esc(g.remarks||'N/A')}</div>`)
+  + sec('Acceptance', signBlock());
+}
+function buildCEFDA(g){ return ''
+  + kv([['Certificate No:',esc(g.certNo)],['Date of Issue:',fmtDate(g.issueDate)]])
+  + sec('1. Manufacturer / Responsible Party', `<p>${esc(g.manufacturer)}<br>Authorised regional representative: ${COMPANY.name}<br>${COMPANY.address}<br>Email: ${COMPANY.email}</p>`)
+  + sec('2. Equipment', kv([['Product:','OxeFit '+esc(g.model)],['Model:',esc(g.model)],['Serial Number(s):',esc(g.serial)],['Equipment Type:','AI-Powered Strength & Performance Training System']]))
+  + sec('3. CE — Declaration of Conformity', `<p><b>Applicable EU Directives:</b> ${esc(g.ceDirectives)}</p><p><b>Harmonized standards applied:</b> ${esc(g.ceStandards)}</p>`)
+  + (g.fdaNo? sec('4. FDA Registration / Listing', `<p>U.S. FDA Registration / Listing Number: <b>${esc(g.fdaNo)}</b></p>`) : '')
+  + sec('Declaration of Conformity', `<p>${esc(g.declaration)}</p>`+signBlock());
+}
+function buildFSE(g){ let ci=0;
+  const groups=FSE_MODULES.map(grp=>{ const rows=grp[1].map(it=>{ const on=g.checks[ci++]; return `<tr><td style="width:30px;text-align:center;font-size:16px">${on?'☑':'☐'}</td><td>${it}</td></tr>`; }).join(''); return `<h2 class="doc-h">${grp[0]}</h2><table class="grid"><tbody>${rows}</tbody></table>`; }).join('');
+  return ''
+  + kv([['Certificate No:',esc(g.certNo)],['Date of Issue:',fmtDate(g.issueDate)]])
+  + `<p>This is to certify that the person named below has successfully completed the <b>OxeFit Field Service Engineer (FSE) Training Program</b> and is authorised to install, service and maintain the equipment covered.</p>`
+  + sec('Trainee & Training Details', kv([['Trainee Name:',esc(g.trainee)],['Trainer / Instructor:',esc(g.trainer)],['Training Location:',esc(g.location)],['Training Dates:',fmtDate(g.trainFrom)+(g.trainTo?' – '+fmtDate(g.trainTo):'')],['Equipment Covered:','OxeFit '+esc(g.model)],['Result:',`<b>${esc(g.result)}</b>`],['Certificate Valid Until:',fmtDate(addYearsEnd(g.issueDate,g.validity))]]))
+  + groups
+  + sec('Authorization', signBlock());
+}
 function buildEST(g){ return ''
   + kv([['Certificate No:',esc(g.certNo)],['Date of Test:',fmtDate(g.testDate)]])
   + sec('1. Equipment Information', kv([['Equipment Name:',esc(g.model)],['Equipment Type:','AI-Powered Strength & Performance Training System'],['Manufacturer:',COMPANY.manufacturer],['Model',esc(g.model)],['Serial Number(s):',esc(g.serial)],['Quantity Installed:',esc(g.qty)],['Customer / End User:',esc(g.customer)],['Installation location',esc(g.address)]]))
@@ -1633,6 +1702,9 @@ function buildCertHtml(){
   else if(certType==='Warranty Certificate'){ g.certNo=certVal('certNo'); g.issueDate=certVal('issueDate')||g.date; g.warrantyStart=certVal('warrantyStart')||g.date; g.years=Number(certVal('years'))||5; expiry=addYearsEnd(g.warrantyStart,g.years); title='OxeFit Plus Warranty Certificate — '+(g.customer||''); body=buildWarranty(g); }
   else if(certType==='PPM Report'){ g.effectiveDate=certVal('effectiveDate')||g.date; g.visits=certVal('visits')||'2'; g.validity=certVal('validity')||'1'; title='OxeFit PPM Report — '+(g.customer||''); body=buildPPM(g); }
   else if(certType==='PPM Service Report'){ const checks=[]; let n=0; PPM_CHECKS.forEach(grp=>grp[1].forEach(()=>{ checks.push(!!certVal('chk'+n)); n++; })); g.checks=checks; g.visitDate=certVal('visitDate')||g.date; g.visitNo=certVal('visitNo'); g.technician=certVal('technician'); g.nextVisit=certVal('nextVisit'); g.result=certVal('result'); g.findings=certVal('findings'); title='OxeFit PPM Service Report — '+(g.customer||''); body=buildPPMReport(g); }
+  else if(certType==='Installation Checklist'){ const checks=[]; let n=0; INSTALL_CHECKS.forEach(grp=>grp[1].forEach(()=>{ checks.push(!!certVal('chk'+n)); n++; })); g.checks=checks; g.reportNo=certVal('reportNo'); g.installer=certVal('installer'); g.result=certVal('result'); g.remarks=certVal('remarks'); title='OxeFit Installation Checklist — '+(g.customer||''); body=buildInstallChecklist(g); }
+  else if(certType==='CE/FDA Certificate'){ g.certNo=certVal('certNo'); g.issueDate=certVal('issueDate')||g.date; g.manufacturer=certVal('manufacturer'); g.ceDirectives=certVal('ceDirectives'); g.ceStandards=certVal('ceStandards'); g.fdaNo=certVal('fdaNo'); g.declaration=certVal('declaration'); title='OxeFit CE-FDA Certificate — '+(g.model||''); body=buildCEFDA(g); }
+  else if(certType==='FSE Training Certificate'){ const checks=[]; let n=0; FSE_MODULES.forEach(grp=>grp[1].forEach(()=>{ checks.push(!!certVal('chk'+n)); n++; })); g.checks=checks; g.certNo=certVal('certNo'); g.issueDate=certVal('issueDate')||g.date; g.trainee=certVal('trainee'); g.trainer=certVal('trainer'); g.location=certVal('location'); g.trainFrom=certVal('trainFrom'); g.trainTo=certVal('trainTo'); g.validity=certVal('validity')||'2'; g.result=certVal('result'); title='OxeFit FSE Training Certificate — '+(g.trainee||''); body=buildFSE(g); }
   else { g.certNo=certVal('certNo'); g.testDate=certVal('testDate')||g.date; g.supply=certVal('supply'); g.phase=certVal('phase'); g.power=certVal('power'); g.earthing=certVal('earthing'); g.plug=certVal('plug'); g.outcome=certVal('outcome'); g.remarks=certVal('remarks'); title='OxeFit EST Certificate — '+(g.customer||''); body=buildEST(g); }
   return {title, body, expiry};
 }
