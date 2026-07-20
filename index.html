@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v3.8</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v3.9</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v3.8</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v3.9</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v3.8</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v3.9</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -293,8 +293,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.8
-   Build: v3.8 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v3.9
+   Build: v3.9 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -569,6 +569,16 @@ function openSettings(){
         </div>
         <div class="hint" style="margin-top:8px">“Offload” keeps every file (moves it to OneDrive, keeps photo thumbnails). “Strip” only frees space by removing embedded copies — use as a last resort if sync keeps crashing.</div>
       </div>
+    </div>
+    <div class="fld" style="margin-top:18px"><label>Backup &amp; recovery</label>
+      <div class="hint" style="margin-bottom:8px">A dated copy of the database is saved automatically once a day to <b>${esc(BACKUP_DIR)}</b> in OneDrive. You can also back up now, browse/restore a backup, or export/import the database as a file.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary" onclick="backupNow()">💾 Backup now</button>
+        <button class="btn" onclick="openBackupsModal()">🕘 Restore from backup…</button>
+        <button class="btn" onclick="exportData()">⬇ Export data</button>
+        <button class="btn" onclick="importData()">⬆ Import data</button>
+      </div>
+      <div class="hint" style="margin-top:8px"><b>Recover lost data:</b> download the last good <code>delivery-tracker.json</code> from OneDrive → the file's <b>Version history</b>, then use <b>Import data</b> here to merge it back and re-sync to the team.</div>
     </div>`, null);
 }
 async function offloadAttachments(){
@@ -824,6 +834,7 @@ async function downloadFromOneDrive(){
       updateTicketBadge(); }
     _initialSynced=true;
     setSync('connected','Synced');
+    backupDaily();
   }catch(e){ console.warn('download',e); if(e&&e.code===403){ showSharedError(); } else { setSync('error','Sync error'); } }
   finally{ _syncBusy=false; }
 }
@@ -881,6 +892,39 @@ async function saveToOneDriveDirect(){
   }catch(e){ console.warn('direct save',e); setSync('error','Sync error'); return false; }
 }
 function setSync(cls,txt){ const d=document.getElementById('syncDot'), t=document.getElementById('syncText'); if(d) d.className='sync-dot '+(cls||''); if(t) t.textContent=txt; }
+
+/* ===================== BACKUP & RECOVERY ===================== */
+const BACKUP_DIR='/OXEFIT/backups/';
+function hasRealData(){ return COLLECTIONS.some(function(k){ return (state[k]||[]).some(function(x){ return x && !x._seed; }); }); }
+function dropSeeds(){ COLLECTIONS.forEach(function(k){ state[k]=(state[k]||[]).filter(function(x){ return !x._seed; }); }); }
+/* Once a day, write a timestamped copy of the database to /OXEFIT/backups/ (only if real data exists). */
+async function backupDaily(){
+  if(!ONLINE || !hasRealData()) return;
+  const today=new Date().toISOString().slice(0,10);
+  try{ if(localStorage.getItem('oxefit_lastBackup')===today) return; }catch(e){}
+  try{
+    const tok=await getToken(); const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser);
+    const path=BACKUP_DIR+'delivery-tracker-'+today+'.json';
+    const res=await fetch('https://graph.microsoft.com/v1.0/users/'+upn+'/drive/root:'+path+':/content',{method:'PUT',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify(state)});
+    if(res.ok){ try{ localStorage.setItem('oxefit_lastBackup',today); }catch(e){} }
+  }catch(e){ console.warn('daily backup',e); }
+}
+async function backupNow(){ if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; } if(!hasRealData()){ toast('No real data to back up yet','err'); return; } try{ localStorage.removeItem('oxefit_lastBackup'); }catch(e){} toast('Backing up…'); await backupDaily(); toast('Backup saved to OneDrive','ok'); }
+async function listBackups(){ const tok=await getToken(); const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser); const url='https://graph.microsoft.com/v1.0/users/'+upn+'/drive/root:'+BACKUP_DIR.replace(/\/$/,'')+':/children?$top=200'; const res=await fetch(url,{headers:{Authorization:'Bearer '+tok}}); if(!res.ok) return []; const j=await res.json(); return (j.value||[]).filter(function(x){ return /\.json$/i.test(x.name); }).sort(function(a,b){ return a.name<b.name?1:-1; }); }
+async function openBackupsModal(){ if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; } toast('Loading backups…'); let list=[]; try{ list=await listBackups(); }catch(e){ console.warn(e); }
+  const body = list.length? `<div class="p-sub" style="margin-bottom:8px">Restoring merges a backup back into the live database and re-syncs it to the team.</div><div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Backup file</th><th>Saved</th><th>Size</th><th></th></tr></thead><tbody>${list.map(b=>`<tr><td><b>${esc(b.name)}</b></td><td>${fmtDate((b.lastModifiedDateTime||'').slice(0,10))}</td><td>${fmtBytes(b.size||0)}</td><td class="actions"><button class="mini-btn" onclick="restoreBackup('${esc(b.name)}')">Restore</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">No backups found yet — they are created automatically once a day, or use “Backup now”.</div>';
+  modal('OneDrive backups', body, null, true);
+}
+async function restoreBackup(name){ if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; } if(!confirm('Restore backup:\n'+name+'\n\nThis merges its data into the current database and syncs to the whole team.')) return;
+  try{ const tok=await getToken(); const upn=encodeURIComponent(ONEDRIVE_CONFIG.sharedDriveUser); const res=await fetch('https://graph.microsoft.com/v1.0/users/'+upn+'/drive/root:'+BACKUP_DIR+encodeURIComponent(name)+':/content',{headers:{Authorization:'Bearer '+tok}}); if(!res.ok) throw new Error('HTTP '+res.status); const data=await res.json(); if(!data||!data.deliveries) throw new Error('bad file');
+    mergeState(data); if(hasRealData()) dropSeeds(); _initialSynced=true; touch(); saveLocal(); closeModal(); renderActive(); await saveToOneDrive(); toast('Backup restored & synced','ok');
+  }catch(e){ console.warn('restore',e); toast('Restore failed','err'); }
+}
+function exportData(){ try{ const blob=new Blob([JSON.stringify(state)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='delivery-tracker-export-'+new Date().toISOString().slice(0,10)+'.json'; document.body.appendChild(a); a.click(); a.remove(); toast('Exported a copy of the database','ok'); }catch(e){ toast('Export failed','err'); } }
+function importData(){ if(CURRENT_ROLE!=='admin'){ toast('Admin only','err'); return; } const inp=document.createElement('input'); inp.type='file'; inp.accept='.json,application/json';
+  inp.onchange=function(e){ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=async function(ev){ try{ const data=JSON.parse(ev.target.result); if(!data||!data.deliveries){ toast('Not a valid tracker backup file','err'); return; } if(!confirm('Import “'+f.name+'” and merge its data into the tracker, then sync to the team?')) return; mergeState(data); if(hasRealData()) dropSeeds(); _initialSynced=true; touch(); saveLocal(); renderActive(); await saveToOneDrive(); toast('Imported & synced — data restored','ok'); }catch(err){ console.warn(err); toast('Import failed — invalid file','err'); } }; rd.readAsText(f); };
+  inp.click(); }
+
 
 /* ============================================================
    BOOT + LOGIN
