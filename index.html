@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.4</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.6</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.4</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.6</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.4</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.6</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.4
-   Build: v4.4 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.6
+   Build: v4.6 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -314,7 +314,7 @@ const ONEDRIVE_CONFIG = {
   redirectUri: window.location.origin + window.location.pathname,
   filePath   : '/OXEFIT/delivery-tracker.json',     // separate DB from sales tracker
   sharedDriveUser: 'demo@core-velocity.com',         // single shared drive for the whole team
-  scopes     : ['Files.ReadWrite.All', 'User.Read']
+  scopes     : ['Files.ReadWrite.All', 'User.Read', 'Mail.Send']
 };
 
 /* Google config for Customer Reviews module (optional). Reuses CoreV Google app. */
@@ -1067,6 +1067,7 @@ function renderDashboard(){
       <div class="kpi gold"><div class="k-label">Open Tickets</div><div class="k-val">${openTickets}</div><div class="k-sub">${state.tickets.length} total logged</div></div>
       <div class="kpi red"><div class="k-label">Reorder Alerts</div><div class="k-val">${reorder.length}</div><div class="k-sub">items at/below min stock</div></div>
       <div class="kpi green"><div class="k-label">Total Shipping Cost</div><div class="k-val" style="font-size:24px">${money(totalCost)}</div><div class="k-sub">${state.costing.length} delivery costs</div></div>
+      <div class="kpi ${(d.filter(x=>x.activation!=='Activated').length>0)?'red':'green'}"><div class="k-label">Pending Activation</div><div class="k-val">${d.filter(x=>x.activation!=='Activated').length}</div><div class="k-sub">${d.filter(x=>x.activation==='Activated').length} activated · ${d.length} orders</div></div>
     </div>
 
     <div class="panel" style="margin-bottom:16px"><h3>🏋️ Equipment in stock</h3><div class="p-sub">Live units available — pulled from Spares &amp; Stock · <a href="#" onclick="go('spares');return false;">manage →</a></div>
@@ -1109,7 +1110,7 @@ function renderDashboard(){
 ============================================================ */
 let delFilter='ALL', delSearch='';
 function renderDeliveries(){
-  const cols=['Delivery Note ID','Receiver','Contact','Email','Address','Region','Delivery Date','Time','Status','Model','Sales Person','Sales Coach','Warranty Start','Months','Warranty End','Customer Call','Coach Delivered','Flooring','Serial No.','Review Form','Free Session','Notes'];
+  const cols=['Delivery Note ID','Receiver','Contact','Email','Address','Region','Delivery Date','Time','Status','Model','Sales Person','Sales Coach','Warranty Start','Months','Warranty End','Customer Call','Coach Delivered','Flooring','Serial No.','Review Form','Free Session','Notes','Type','Activation'];
   let rows=state.deliveries.slice();
   if(delFilter!=='ALL') rows=rows.filter(r=>r.status===delFilter);
   if(delSearch){ const q=delSearch.toLowerCase(); rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q)); }
@@ -1139,10 +1140,58 @@ function renderDeliveries(){
         <td>${r.successCall?`<span class="pill ${r.successCall==='SATISFIED'?'green':r.successCall==='UNSATISFIED'?'red':'grey'}">${esc(r.successCall)}</span>`:''}</td>
         <td>${esc(r.coachDelivered||'')}</td><td>${esc(r.flooring||'')}</td><td>${esc(r.serialNo||'')}</td>
         <td>${esc(r.reviewForm||'')}</td><td>${esc(r.freeSession||'')}</td><td class="note-cell">${esc(r.notes||'')}</td>
+        <td>${r.orderType?`<span class="tag">${esc(r.orderType)}</span>`:'—'}</td>
+        <td>${r.activation==='Activated'?`<span class="pill green">Activated</span>${r.activatedBy?`<div class="muted" style="font-size:10px">${esc(r.activatedBy)}${r.activatedDate?' · '+fmtDate(r.activatedDate):''}</div>`:''}`:`<span class="pill amber">Pending</span>`}<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${canEditModule('deliveries')?`<button class="mini-btn" onclick="sendActivationEmail('${r.id}')">✉ Send</button>`:''}${CURRENT_ROLE==='admin'?`<button class="mini-btn" onclick="flagActivated('${r.id}')">${r.activation==='Activated'?'↺ Unflag':'✓ Activate'}</button>`:''}</div></td>
         <td class="actions">${canEditRow(r)?`<button class="mini-btn" onclick="openDelivery('${r.id}')">Edit</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delDelivery('${r.id}')">✕</button>`:''}</td>
       </tr>`).join(''):`<tr><td colspan="${cols.length+1}"><div class="empty">No deliveries match.</div></td></tr>`}
     </tbody></table></div>
   </div>`);
+}
+function activationSummary(d){ const type=d.orderType||'Consumer'; return {
+    type,
+    subject:'OxeFit Activation Request — '+(d.model||'')+' '+(d.serialNo||'')+' — '+(d.receiver||''),
+    body:[
+      'Please activate the following OxeFit unit:','',
+      'Order type: '+type,
+      'Delivery Note ID: '+(d.id||''),
+      'Buyer / Receiver: '+(d.receiver||''),
+      'Contact number: '+(d.contact||''),
+      'Email: '+(d.email||''),
+      'Address: '+(d.address||''),
+      'Model: '+(d.model||''),
+      'Serial No.: '+(d.serialNo||''),
+      'Delivery date: '+(fmtDate(d.deliveryDate)||'—'),
+      'Sales person: '+(d.salesPerson||''),
+      '','Once activated, please flag this order as Activated in the CoreV Delivery Tracker.',
+      '','— Sent from OxeFit by CoreV · Delivery Tracker'
+    ].join('\n')
+  }; }
+async function sendActivationEmail(id){ const d=state.deliveries.find(x=>x.id===id); if(!d) return;
+  if(!ONLINE || typeof msalInstance==='undefined'){ activationEmail(id); return; }
+  const s=activationSummary(d);
+  const to=[{emailAddress:{address:'ahmed@core-velocity.com'}}];
+  const cc=s.type==='Commercial'?[{emailAddress:{address:'libraheem@oxefit.com'}}]:[];
+  if(!confirm('Send activation email now to '+(s.type==='Commercial'?'Ahmed + Layth (OxeFit)':'Ahmed')+'?')) return;
+  try{
+    setSync('syncing','Sending…');
+    let tok; try{ tok=(await msalInstance.acquireTokenSilent({scopes:['Mail.Send'],account:msalAccount})).accessToken; }
+    catch(e){ tok=(await msalInstance.acquireTokenPopup({scopes:['Mail.Send'],account:msalAccount})).accessToken; }
+    const res=await fetch('https://graph.microsoft.com/v1.0/me/sendMail',{method:'POST',headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},body:JSON.stringify({message:{subject:s.subject,body:{contentType:'Text',content:s.body},toRecipients:to,ccRecipients:cc},saveToSentItems:true})});
+    if(res.ok||res.status===202){ d.activationEmailSent=new Date().toISOString().slice(0,10); d._ts=Date.now(); persist(); toast('Activation email sent'+(cc.length?' (Ahmed + Layth)':' (Ahmed)'),'ok'); setSync('connected','Synced'); }
+    else { throw new Error('HTTP '+res.status); }
+  }catch(e){ console.warn('sendMail',e); setSync('connected','Synced'); toast('Auto-send unavailable — opened a draft instead','err'); activationEmail(id); }
+}
+function activationEmail(id){ const d=state.deliveries.find(x=>x.id===id); if(!d) return;
+  const s=activationSummary(d);
+  const cc = s.type==='Commercial' ? 'libraheem@oxefit.com' : '';
+  const url='mailto:'+encodeURIComponent('ahmed@core-velocity.com')+'?'+(cc?'cc='+encodeURIComponent(cc)+'&':'')+'subject='+encodeURIComponent(s.subject)+'&body='+encodeURIComponent(s.body);
+  const a=document.createElement('a'); a.href=url; document.body.appendChild(a); a.click(); a.remove();
+  toast('Activation email drafted'+(cc?' (Ahmed + Layth)':' (Ahmed)'),'ok');
+}
+function flagActivated(id){ if(CURRENT_ROLE!=='admin'){ toast('Only admins can flag activation','err'); return; } const d=state.deliveries.find(x=>x.id===id); if(!d) return;
+  if(d.activation==='Activated'){ if(!confirm('Mark this order as NOT activated?')) return; d.activation='Pending'; d.activatedBy=''; d.activatedDate=''; toast('Marked pending'); }
+  else { d.activation='Activated'; d.activatedBy=CURRENT_USER; d.activatedDate=new Date().toISOString().slice(0,10); toast('Marked activated','ok'); }
+  d._ts=Date.now(); persist();
 }
 function openDelivery(id){
   if(!requireEdit('deliveries'))return;
@@ -1158,6 +1207,8 @@ function openDelivery(id){
       <div class="fld full"><label>Address</label><input name="address" value="${esc(r.address||'')}"></div>
       <div class="fld"><label>Region</label>${sel('region',REGIONS,r.region)}</div>
       <div class="fld"><label>Model delivered</label>${sel('model',MODELS,r.model)}</div>
+      <div class="fld"><label>Order type</label>${sel('orderType',['Consumer','Commercial'],r.orderType)}</div>
+      <div class="fld"><label>Activation status</label><input value="${esc(r.activation||'Pending')}${r.activatedBy?' — '+esc(r.activatedBy)+(r.activatedDate?' ('+fmtDate(r.activatedDate)+')':''):''}" readonly></div>
       <div class="fld"><label>Delivery date</label><input type="date" name="deliveryDate" value="${esc(r.deliveryDate||'')}"></div>
       <div class="fld"><label>Delivery time</label><input name="deliveryTime" value="${esc(r.deliveryTime||'')}"></div>
       <div class="fld"><label>Current status</label>${sel('status',STATUSES,r.status)}</div>
