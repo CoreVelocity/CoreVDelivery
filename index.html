@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.3</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.4</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.3</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.4</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.3</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.4</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -278,6 +278,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="nav-section">Company</div>
       <div class="nav-item" data-view="documents" onclick="go('documents')"><span class="nav-ico">📁</span><span class="lbl">Important Documents</span></div>
       <div class="nav-item" data-view="certificates" onclick="go('certificates')"><span class="nav-ico">📜</span><span class="lbl">Certificates &amp; Reports</span></div>
+      <div class="nav-item" data-view="exportdocs" onclick="go('exportdocs')"><span class="nav-ico">🚢</span><span class="lbl">Export Documents</span></div>
       <div class="nav-item" data-view="access" onclick="go('access')"><span class="nav-ico">🔐</span><span class="lbl">Access Control</span></div>
       <div class="nav-section">Support</div>
       <div class="nav-item" data-view="tickets" onclick="go('tickets')"><span class="nav-ico">🎫</span><span class="lbl">Tickets</span><span class="nav-badge" id="ticketBadge" style="display:none">0</span></div>
@@ -293,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.3
-   Build: v4.3 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.4
+   Build: v4.4 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -413,8 +414,8 @@ let reviewSheetId = REVIEWS_CONFIG.sheetId || (function(){ try{ return localStor
 let activeView = 'dashboard';
 const LS_KEY = 'oxefit_delivery_v1';
 
-let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], documents:[], acl:null, aclTs:0, tombstones:{}, meta:{updated:null,by:null,logo:null} };
-const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound','documents'];
+let state = { deliveries:[], stock:[], accessories:[], costing:[], tickets:[], reviews:[], logs:[], events:[], inbound:[], documents:[], exportDocs:[], acl:null, aclTs:0, tombstones:{}, meta:{updated:null,by:null,logo:null} };
+const COLLECTIONS = ['deliveries','stock','accessories','costing','tickets','reviews','logs','events','inbound','documents','exportDocs'];
 
 /* ─────────── SEED DATA (sample rows from your Excel template) ─────────── */
 function seedData(){
@@ -989,7 +990,7 @@ function go(view){
   renderActive();
 }
 function renderActive(){
-  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,documents:renderDocuments,certificates:renderCertificates,access:renderAccess,tickets:renderTickets,reviews:renderReviews}[activeView];
+  const r={dashboard:renderDashboard,deliveries:renderDeliveries,spares:renderSpares,inbound:renderInbound,shipping:renderShipping,logs:renderLogs,events:renderEvents,documents:renderDocuments,certificates:renderCertificates,exportdocs:renderExportDocs,access:renderAccess,tickets:renderTickets,reviews:renderReviews}[activeView];
   if(r) document.getElementById('mainContent').innerHTML='', r();
   refreshNav();
   updateTicketBadge();
@@ -1817,6 +1818,109 @@ async function saveCertToDocs(){ if(!canEditModule('documents')){ toast('Only ad
   try{ toast('Saving to OneDrive…'); const blob=new Blob([full],{type:'text/html'}); const ref=await graphUploadAttachment({name:fileName,mime:'text/html',size:blob.size,file:blob}); rec.storage='onedrive'; rec.driveId=ref.driveId; rec.itemId=ref.itemId; rec.size=blob.size; }
   catch(e){ console.warn('cert save',e); rec.storage='inline'; rec.data='data:text/html;base64,'+btoa(unescape(encodeURIComponent(full))); rec.size=full.length; }
   state.documents.unshift(rec); persist(); toast('Saved to Important Documents','ok'); }
+
+/* ============================================================
+   VIEW: EXPORT DOCUMENTS  (Commercial Invoice, Packing List, COO, Manufacturer's Cert)
+============================================================ */
+const EXPORT_CO={ name:'Core Velocity Sport Machine Trading L.L.C', addr:'Court Tower, Office 403 \u2013 Business Bay', city:'Dubai, United Arab of Emirates', phone:'+971 50 330 4196', email:'info@core-velocity.com', web:'www.core-velocity.com', trn:'104796789600003', reg:'104796789600001', bankName:'Emirates NBD', acct:'1025908678802', iban:'AE490260001025908678802', signatory:'Ahmed Abuhakmeh', title:'Co-Founder \u0026 Managing Partner' };
+function newExportDoc(){ return { id:uid(), invoiceNo:'', invoiceDate:new Date().toISOString().slice(0,10), dueDate:'', shipDate:'', billTo:'', shipTo:'', formM:'', baNo:'', hsCode:'9506.91.0000', countryOrigin:'United States', countryDispatch:'United Arab Emirates (Dubai)', portSupply:'Dubai, UAE (Dubai International Airport - DXB)', portDischarge:'', portLoading:'Dubai International Airport (DXB), United Arab Emirates', shipVia:'Air Freight', paymentTerms:'100% on Invoice', deliveryTerm:'As per our PO', estDelivery:'1-2 Weeks from payment', poRef:'', awbNo:'', flightRoute:'', codDate:'', itemsText:'OXEFIT XS1 FLOW-PLUS | MENA-XS1-FLOW-PLUS-XFIT-36MO | OXEFIT XS1 FLOW-PLUS WITH 36M CONSUMER MEMBERSHIP, 3 YR WARRANTY & FLOW-PLUS ACCESSORIES | 1 | 11824.78\nInternational Shipping | MENA-SVCS-AIRSHIP-XS1 | Customized Air Shipping for Special Order (1 XS1) | 1 | 4795.00', packDesc:'MENA-XS1-FLOW PLUS \u2013 NO APEX MEMBERSHIP, WARRANTY, & ACCESSORIES\n\u2022 OXEFIT XS1 FLOW-PLUS\n\u2022 MULTI-FUNCTION BENCH\n\u2022 ACCESSORIES - BAR, OXEDOT, 12/45 BARBELLS, ROPE, HANDGRIPS, ANKLE STRAPS, SKI HANDLES, HARNESS, ACC TREE, CINCH BELT, WATER SPORTS', contents:'Air Freight Full Packaging', weight:'320 KG', dimensions:'L. 81 x W 52 x H 50 in', totalPackages:'1', netWeight:'~320 KG', airFreight:'USD 4,795.00', _ts:Date.now() }; }
+function parseItems(txt){ return (txt||'').split('\n').map(function(l){return l.trim();}).filter(Boolean).map(function(l){ var p=l.split('|').map(function(x){return x.trim();}); var q=Number(p[3]||1)||1, r=Number(p[4]||0)||0; return {product:p[0]||'', sku:p[1]||'', desc:p[2]||'', qty:q, rate:r, amount:q*r}; }); }
+function money2(n){ n=Number(n)||0; return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function nl2br(t){ return esc(t||'').replace(/\n/g,'<br>'); }
+const EXP_CSS="@page{size:A4;margin:13mm 12mm}*{box-sizing:border-box}body{font-family:'Segoe UI',Arial,sans-serif;color:#1a202c;font-size:11px;line-height:1.45;margin:0}.doc{padding:2px}.eh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #09193A;padding-bottom:8px;margin-bottom:10px}.en{font-weight:800;font-size:13px;color:#09193A}.ea{font-size:8.6px;color:#475569;margin-top:3px;line-height:1.5}.elogo{height:15mm}.et{font-size:22px;color:#1e3a8a;margin:4px 0 12px;font-weight:800}.two{display:flex;gap:16px;margin-bottom:10px}.two>div{flex:1}.lbl2{font-size:8px;letter-spacing:.1em;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:3px}.box2{border:1px solid #e2e8f0;border-radius:4px;padding:7px 9px;font-size:9.6px;line-height:1.5}table{border-collapse:collapse;width:100%;margin:6px 0}th{background:#09193A;color:#fff;padding:6px 8px;text-align:left;font-size:9px;font-weight:600}td{border:1px solid #e2e8f0;padding:6px 8px;vertical-align:top;font-size:9.6px}table.kv td{border:1px solid #e2e8f0}table.kv td.k{width:44%;background:#f8fafc;font-weight:600;color:#334155}.right{text-align:right}.tot{display:flex;justify-content:flex-end;margin-top:6px}.tot table{width:auto;min-width:62mm}.tot td{border:none;padding:3px 10px}.tot .g td{font-weight:800;font-size:13px;color:#09193A;border-top:2px solid #09193A}.sec{font-size:11px;color:#1e3a8a;font-weight:700;margin:12px 0 4px}.decl{font-size:10px;line-height:1.65;text-align:justify}.esign{display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px;gap:20px}.esl{flex:1}.eline{border-top:1px solid #09193A;margin-top:8px;padding-top:3px}.elab{font-weight:700;font-size:9.2px}.estamp{height:25mm;opacity:.96}.foot{margin-top:14px;text-align:center;font-size:8.6px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:6px}@media print{.np{display:none}}";
+function expShell(title, inner){ var logo=(state.meta&&state.meta.logo)||TRAIN_LOGO; var head='<div class="eh"><div><div class="en">'+esc(EXPORT_CO.name)+'</div><div class="ea">'+esc(EXPORT_CO.addr)+'<br>'+esc(EXPORT_CO.city)+'<br>'+esc(EXPORT_CO.phone)+' | '+esc(EXPORT_CO.email)+'<br>'+esc(EXPORT_CO.web)+' | TRN: '+esc(EXPORT_CO.trn)+'</div></div><img class="elogo" src="'+logo+'"></div>'; return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(title)+'</title><style>'+EXP_CSS+'</style></head><body><div class="doc">'+head+'<h1 class="et">'+esc(title)+'</h1>'+inner+'</div></body></html>'; }
+function expSign(withWitness){ var m=state.meta||{}; var sig=m.signature?'<img src="'+m.signature+'" style="height:12mm;display:block">':'<div style="height:12mm"></div>'; var stamp=m.stamp?'<img class="estamp" src="'+m.stamp+'">':''; var wit=withWitness?'<div class="esl"><div style="height:12mm"></div><div class="eline"></div><div class="elab">Signature of Witness</div><div class="muted">Name: ____________________</div></div>':''; return '<div class="esign"><div class="esl">'+sig+'<div class="eline"></div><div class="elab">Authorized Signature \u2014 '+esc(EXPORT_CO.name)+'</div><div>Name: '+esc(EXPORT_CO.signatory)+'</div><div>Designation: '+esc(EXPORT_CO.title)+'</div></div>'+wit+stamp+'</div>'; }
+function bankBlock(){ return '<div class="box2"><b>Bank details</b><br>Account Name: '+esc(EXPORT_CO.name)+'<br>Account No: '+esc(EXPORT_CO.acct)+'<br>IBAN: '+esc(EXPORT_CO.iban)+'<br>Bank: '+esc(EXPORT_CO.bankName)+'<br>Country: Dubai, United Arab of Emirates</div>'; }
+function notesKv(d){ return kv([['Form M No.',esc(d.formM)],['HS Code',esc(d.hsCode)],['Country of Origin',esc(d.countryOrigin)],['Country of Dispatch of Goods',esc(d.countryDispatch)],['Port of Supply',esc(d.portSupply)],['Port of Discharge',esc(d.portDischarge)],['Approx. Total Net Weight',esc(d.netWeight)]]); }
+function contentsTable(d){ return '<table><thead><tr><th>Contents</th><th>Weight</th><th>Dimensions</th></tr></thead><tbody><tr><td>'+esc(d.contents)+'</td><td>'+esc(d.weight)+'</td><td>'+esc(d.dimensions)+'</td></tr></tbody></table><div class="muted" style="margin-top:4px">Total Packages: '+esc(d.totalPackages)+' &nbsp;|&nbsp; Air Freight Packaging GW: '+esc(d.weight)+'</div>'; }
+
+function buildCommercialInvoice(d){ var items=parseItems(d.itemsText); var sub=items.reduce(function(a,x){return a+x.amount;},0);
+  var rows=items.map(function(x,i){ return '<tr><td>'+(i+1)+'.</td><td><b>'+esc(x.product)+'</b></td><td>'+esc(x.sku)+'</td><td>'+esc(x.desc)+'</td><td class="right">'+x.qty+'</td><td class="right">'+money2(x.rate)+'</td><td class="right">'+money2(x.amount)+'</td></tr>'; }).join('');
+  var inner=''
+  + '<div class="two"><div><div class="lbl2">Bill To</div><div class="box2">'+nl2br(d.billTo)+'</div></div><div><div class="lbl2">Ship To</div><div class="box2">'+nl2br(d.shipTo)+'</div></div></div>'
+  + '<div class="two"><div><div class="lbl2">Shipping Info</div><div class="box2">Ship via: '+esc(d.shipVia)+'<br>Ship date: '+fmtDate(d.shipDate)+'</div></div><div><div class="lbl2">Invoice Details</div><div class="box2">Invoice no.: '+esc(d.invoiceNo)+'<br>Invoice date: '+fmtDate(d.invoiceDate)+'<br>Due date: '+fmtDate(d.dueDate)+'</div></div><div><div class="lbl2">Terms</div><div class="box2">Payment: '+esc(d.paymentTerms)+'<br>Est. delivery: '+esc(d.estDelivery)+'</div></div></div>'
+  + '<table><thead><tr><th>#</th><th>Product / Service</th><th>SKU</th><th>Description</th><th class="right">Qty</th><th class="right">Rate</th><th class="right">Amount</th></tr></thead><tbody>'+rows+'</tbody></table>'
+  + '<div class="two" style="align-items:flex-start"><div>'+bankBlock()+'</div><div><div class="tot"><table><tr><td>Subtotal</td><td class="right">'+money2(sub)+'</td></tr><tr class="g"><td>Total</td><td class="right">'+money2(sub)+'</td></tr></table></div></div></div>'
+  + '<div class="sec">Notes</div>'+notesKv(d)
+  + '<div class="sec">Packing Details</div><table><thead><tr><th>Description</th><th class="right">Qty</th></tr></thead><tbody><tr><td>'+nl2br(d.packDesc)+'</td><td class="right">'+esc(d.totalPackages)+'</td></tr></tbody></table>'+contentsTable(d)
+  + expSign(false)
+  + '<div class="foot">Commercial Invoice for customs clearance and payment. Goods of '+esc(d.countryOrigin)+' origin dispatched from the United Arab Emirates.</div>';
+  return expShell('Commercial Invoice', inner);
+}
+function buildPackingList(d){ var inner=''
+  + '<div class="two"><div><div class="lbl2">Bill To</div><div class="box2">'+nl2br(d.billTo)+'</div></div><div><div class="lbl2">Ship To</div><div class="box2">'+nl2br(d.shipTo)+'</div></div><div><div class="lbl2">Invoice</div><div class="box2">Invoice #: '+esc(d.invoiceNo)+'<br>Date: '+fmtDate(d.invoiceDate)+'</div></div></div>'
+  + kv([['Form M No.',esc(d.formM)],['Delivery Term',esc(d.deliveryTerm)],['Payment Term',esc(d.paymentTerms)],['Country of Origin',esc(d.countryOrigin)],['Country of Dispatch of Goods',esc(d.countryDispatch)],['Port of Supply',esc(d.portSupply)],['Port of Discharge',esc(d.portDischarge)],['HS Code',esc(d.hsCode)]])
+  + '<div class="sec">Packing Details</div><table><thead><tr><th>Description</th><th class="right">Qty</th></tr></thead><tbody><tr><td>'+nl2br(d.packDesc)+'</td><td class="right">'+esc(d.totalPackages)+'</td></tr></tbody></table>'
+  + contentsTable(d)
+  + expSign(false);
+  return expShell('Packing Slip', inner);
+}
+function buildCOO(d){ var items=parseItems(d.itemsText); var sub=items.reduce(function(a,x){return a+x.amount;},0);
+  var decl='I, <b>'+esc(EXPORT_CO.signatory)+'</b> ('+esc(EXPORT_CO.title)+') of <b>'+esc(EXPORT_CO.name)+'</b>, Address: '+esc(EXPORT_CO.addr)+', '+esc(EXPORT_CO.city)+'. *Manufacturers/Suppliers/Exporters of the goods enumerated in this invoice amounting to <b>'+money2(sub).replace('$','USD ')+'</b> (Invoice No. '+esc(d.invoiceNo)+' dated '+fmtDate(d.invoiceDate)+'), hereby declare that I have the authority to make and sign this certificate on behalf of the aforesaid Manufacturers/Suppliers/Exporters and that I have the means of knowing and I do hereby certify as follows:';
+  var body='<p class="decl">'+decl+'</p><p class="decl">(1) That all goods mentioned in this invoice have been wholly produced or manufactured in <b>'+esc(d.countryOrigin)+'</b>.<br>(2) That all the goods mentioned in this invoice have been either wholly or partially produced or manufactured in <b>N/A</b>.<br>(3) That as regards those goods only partially produced or manufactured, <b>N/A</b>.</p><p class="decl">Dated at <b>Dubai, UAE</b> this '+fmtDate(d.invoiceDate)+'.</p>';
+  var charges='<table><thead><tr><th>Enumerate the following charges (included / excluded from the selling price)</th><th>Amount</th><th>Included / Excluded</th></tr></thead><tbody>'
+    +'<tr><td>(1) Cartage to rail and/or docks</td><td></td><td>INCLUDED</td></tr>'
+    +'<tr><td>(2) Inland Freight and other Charges</td><td></td><td>INCLUDED</td></tr>'
+    +'<tr><td>(3) Labour in Packing the goods into outside packages</td><td></td><td>INCLUDED</td></tr>'
+    +'<tr><td>(4) Value of Outside packages</td><td></td><td>INCLUDED</td></tr>'
+    +'<tr><td>(5) Air Freight</td><td>'+esc(d.airFreight)+'</td><td>INCLUDED</td></tr>'
+    +'<tr><td>(6) Insurance</td><td></td><td>N/A</td></tr>'
+    +'<tr><td>(7) Commissions and other charges of like nature</td><td></td><td>N/A</td></tr>'
+    +'<tr><td>(8) Other costs, dues, charges &amp; expenses incidental to delivery at destination</td><td></td><td>INCLUDED</td></tr>'
+    +'<tr><td>(9) If the goods are subject to any charge by way of royalties</td><td></td><td>N/A</td></tr></tbody></table>';
+  var inner=body
+    + '<table><thead><tr><th>Item Description</th><th class="right">Qty</th></tr></thead><tbody><tr><td>'+nl2br(d.packDesc)+'<br><span class="muted">HS Code: '+esc(d.hsCode)+'</span></td><td class="right">'+esc(d.totalPackages)+'</td></tr></tbody></table>'
+    + kv([['Port of Discharge',esc(d.portDischarge)],['Port of Loading',esc(d.portLoading)],['Flight / AWB No.',esc(d.awbNo)+(d.flightRoute?'<br>'+esc(d.flightRoute):'')],['Shipped on board / Dispatch date',fmtDate(d.shipDate)],['Country of Origin',esc(d.countryOrigin)],['Country of Supply',esc(d.countryDispatch)],['All the goods supplied are new','YES'],['Mode of Transportation','By Air'],['Form M No.',esc(d.formM)],['PO Reference No.',esc(d.poRef)]])
+    + charges
+    + expSign(true)
+    + '<div class="foot">Note: The person making the declaration should be a principal, manager, chief clerk, secretary or responsible employee.</div>';
+  return expShell('Certificate of Origin', inner);
+}
+function buildMfrCert(d){ var inner=''
+  + kv([['Invoice No. & Date',esc(d.invoiceNo)+', '+fmtDate(d.invoiceDate)],['Form M No.',esc(d.formM)],['BA No.',esc(d.baNo)]])
+  + '<p class="decl">This is to certify that the following materials are manufactured and tested as per the specification.</p>'
+  + '<table><thead><tr><th>Sl. No.</th><th>Description</th><th class="right">Qty</th><th>UOM</th></tr></thead><tbody><tr><td>1</td><td>'+nl2br(d.packDesc)+'<br><span class="muted">HS Code: '+esc(d.hsCode)+' | Country of Origin: '+esc(d.countryOrigin)+'</span></td><td class="right">'+esc(d.totalPackages)+'</td><td>Unit</td></tr></tbody></table>'
+  + expSign(false);
+  return expShell("Manufacturer's Certificate", inner);
+}
+function buildExport(d,type){ if(type==='invoice') return {t:'Commercial Invoice \u2014 '+(d.invoiceNo||''), h:buildCommercialInvoice(d)}; if(type==='packing') return {t:'Packing Slip \u2014 '+(d.invoiceNo||''), h:buildPackingList(d)}; if(type==='coo') return {t:'Certificate of Origin \u2014 '+(d.invoiceNo||''), h:buildCOO(d)}; return {t:"Manufacturer's Certificate \u2014 "+(d.invoiceNo||''), h:buildMfrCert(d)}; }
+function printWindow(full,title){ var btn='<div class="np" style="text-align:center;margin:20px"><button onclick="window.print()" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer">\ud83d\udda8 Print / Save as PDF</button></div><style>@media print{.np{display:none}}</style>'; var out=full.replace('</body>', btn+'</body>'); var w=window.open('','_blank'); if(!w){ var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'text/html'})); a.download=(title||'document').replace(/[^\w]+/g,'_')+'.html'; a.click(); toast('Popup blocked \u2014 downloaded the file'); return; } w.document.open(); w.document.write(out); w.document.close(); setTimeout(function(){try{w.focus();}catch(e){}},150); }
+function generateExportDoc(id,type){ var d=state.exportDocs.find(function(x){return x.id===id;}); if(!d) return; var r=buildExport(d,type); printWindow(r.h, r.t); }
+async function saveExportDocToDocs(id,type){ if(!canEditModule('documents')){ toast('Only admins can save to Important Documents','err'); return; } var d=state.exportDocs.find(function(x){return x.id===id;}); if(!d) return; var r=buildExport(d,type); var fileName=r.t.replace(/[^\w]+/g,'_')+'.html'; var rec={id:uid(), title:r.t, category:'Shipment Document', fileName:fileName, mime:'text/html', notes:'Export document', by:CURRENT_USER, date:new Date().toISOString().slice(0,10), _ts:Date.now()};
+  try{ toast('Saving to OneDrive\u2026'); var blob=new Blob([r.h],{type:'text/html'}); var ref=await graphUploadAttachment({name:fileName,mime:'text/html',size:blob.size,file:blob}); rec.storage='onedrive'; rec.driveId=ref.driveId; rec.itemId=ref.itemId; rec.size=blob.size; }
+  catch(e){ console.warn(e); rec.storage='inline'; rec.data='data:text/html;base64,'+btoa(unescape(encodeURIComponent(r.h))); rec.size=r.h.length; }
+  state.documents.unshift(rec); persist(); toast('Saved to Important Documents','ok'); }
+
+function renderExportDocs(){ if(!canViewModule('exportdocs')&&CURRENT_ROLE!=='admin'){ } 
+  var rows=(state.exportDocs||[]).slice().sort(function(a,b){return (b._ts||0)-(a._ts||0);});
+  document.getElementById('mainContent').insertAdjacentHTML('beforeend', ''
+  + '<div class="view active"><div class="page-head"><div><div class="page-title">Export Documents</div><div class="page-sub">Create a shipment record, then generate the Commercial Invoice, Packing List, Certificate of Origin &amp; Manufacturer\'s Certificate</div></div><div class="toolbar">'+(canEditModule('exportdocs')?'<button class="btn primary" onclick="openExportDoc()">\uff0b New shipment</button>':'')+'</div></div>'
+  + '<div class="table-wrap"><table><thead><tr><th>Invoice #</th><th>Bill To</th><th>Date</th><th>Generate</th><th>\u2699</th></tr></thead><tbody>'
+  + (rows.length? rows.map(function(d){ var g='<button class="mini-btn" onclick="generateExportDoc(\''+d.id+'\',\'invoice\')">\ud83e\uddfe Invoice</button> <button class="mini-btn" onclick="generateExportDoc(\''+d.id+'\',\'packing\')">\ud83d\udce6 Packing</button> <button class="mini-btn" onclick="generateExportDoc(\''+d.id+'\',\'coo\')">\ud83c\udf0d COO</button> <button class="mini-btn" onclick="generateExportDoc(\''+d.id+'\',\'mfr\')">\ud83c\udfed Mfr</button>';
+      return '<tr><td><b>'+esc(d.invoiceNo||'\u2014')+'</b></td><td>'+esc((d.billTo||'').split(String.fromCharCode(10))[0]||'')+'</td><td>'+fmtDate(d.invoiceDate)+'</td><td class="actions">'+g+'</td><td class="actions">'+(canEditModule('exportdocs')?'<button class="mini-btn" onclick="openExportDoc(\''+d.id+'\')">Edit</button>':'')+(canDelete()?' <button class="mini-btn del" onclick="delExportDoc(\''+d.id+'\')">\u2715</button>':'')+'</td></tr>'; }).join('') : '<tr><td colspan="5"><div class="empty">No shipments yet. Click \u201cNew shipment\u201d to create one.</div></td></tr>')
+  + '</tbody></table></div>'
+  + (canEditModule('documents')?'<div class="hint" style="margin-top:10px">Tip: after generating, use your browser\u2019s Save as PDF. To file a copy in Important Documents, open a shipment \u2192 Save buttons.</div>':'')
+  + '</div>');
+}
+function ef(l,n,v,t){ return '<div class="fld"><label>'+l+'</label><input type="'+(t||'text')+'" name="'+n+'" value="'+esc(v||'')+'"></div>'; }
+function eta(l,n,v,rows){ return '<div class="fld full"><label>'+l+'</label><textarea name="'+n+'" rows="'+(rows||3)+'">'+esc(v||'')+'</textarea></div>'; }
+function openExportDoc(id){ if(!canEditModule('exportdocs')){ toast('View-only access','err'); return; } var d=id?state.exportDocs.find(function(x){return x.id===id;}):newExportDoc(); if(!d) return;
+  var body='<div class="form-grid">'
+    + ef('Invoice #','invoiceNo',d.invoiceNo)+ef('Invoice date','invoiceDate',d.invoiceDate,'date')+ef('Due date','dueDate',d.dueDate,'date')+ef('Ship date','shipDate',d.shipDate,'date')
+    + eta('Bill To (name + address)','billTo',d.billTo,3)+eta('Ship To (name + address)','shipTo',d.shipTo,3)
+    + ef('Form M No.','formM',d.formM)+ef('BA No.','baNo',d.baNo)+ef('HS Code','hsCode',d.hsCode)+ef('PO Reference No.','poRef',d.poRef)
+    + ef('Country of Origin','countryOrigin',d.countryOrigin)+ef('Country of Dispatch','countryDispatch',d.countryDispatch)
+    + ef('Port of Supply','portSupply',d.portSupply)+ef('Port of Discharge','portDischarge',d.portDischarge)+ef('Port of Loading','portLoading',d.portLoading)
+    + ef('Flight / AWB No.','awbNo',d.awbNo)+eta('Flight routing','flightRoute',d.flightRoute,2)
+    + ef('Ship via','shipVia',d.shipVia)+ef('Payment terms','paymentTerms',d.paymentTerms)+ef('Delivery term','deliveryTerm',d.deliveryTerm)+ef('Estimated delivery','estDelivery',d.estDelivery)
+    + '<div class="fld full"><label>Line items \u2014 one per line: <b>Product | SKU | Description | Qty | Rate</b></label><textarea name="itemsText" rows="4">'+esc(d.itemsText)+'</textarea></div>'
+    + eta('Packing description (products &amp; accessories)','packDesc',d.packDesc,4)
+    + ef('Contents','contents',d.contents)+ef('Weight','weight',d.weight)+ef('Dimensions','dimensions',d.dimensions)+ef('Total packages','totalPackages',d.totalPackages)+ef('Net weight','netWeight',d.netWeight)+ef('Air freight (for COO charge)','airFreight',d.airFreight)
+    + '</div>';
+  modal(id?'Edit shipment':'New shipment', body, function(){ var f=getForm(); Object.assign(d,f); d._ts=Date.now(); if(!id) state.exportDocs.push(d); persist(); closeModal(); toast('Shipment saved','ok'); renderActive(); }, true);
+}
+function delExportDoc(id){ if(!canDelete()) return; if(!confirm('Delete this shipment record?')) return; deleteFrom('exportDocs',id); toast('Deleted'); }
+
 
 /* ============================================================
    VIEW: SHIPPING & COSTS  (COSTING log)
