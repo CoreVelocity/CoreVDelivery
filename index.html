@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.6</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.7</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.6</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.7</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.6</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.7</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.6
-   Build: v4.6 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.7
+   Build: v4.7 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1108,11 +1108,14 @@ function renderDashboard(){
 /* ============================================================
    VIEW: DELIVERIES  (Stock Movement Log — all detail columns)
 ============================================================ */
-let delFilter='ALL', delSearch='';
+let delFilter='ALL', delSearch='', delActFilter='ALL', delTypeFilter='ALL';
 function renderDeliveries(){
   const cols=['Delivery Note ID','Receiver','Contact','Email','Address','Region','Delivery Date','Time','Status','Model','Sales Person','Sales Coach','Warranty Start','Months','Warranty End','Customer Call','Coach Delivered','Flooring','Serial No.','Review Form','Free Session','Notes','Type','Activation'];
   let rows=state.deliveries.slice();
   if(delFilter!=='ALL') rows=rows.filter(r=>r.status===delFilter);
+  if(delActFilter==='Activated') rows=rows.filter(r=>r.activation==='Activated');
+  else if(delActFilter==='Pending') rows=rows.filter(r=>r.activation!=='Activated');
+  if(delTypeFilter!=='ALL') rows=rows.filter(r=>(r.orderType||'')===delTypeFilter);
   if(delSearch){ const q=delSearch.toLowerCase(); rows=rows.filter(r=>JSON.stringify(r).toLowerCase().includes(q)); }
   const statusPill=s=>{const m={'CLOSED':'green','OPEN':'grey','POSTPONED':'red'};const c=s&&s.startsWith('DELIVERED')?'blue':(m[s]||'amber');return `<span class="pill ${c}">${esc(s||'—')}</span>`;};
 
@@ -1129,6 +1132,16 @@ function renderDeliveries(){
     </div>
     <div class="filter-pills">
       ${['ALL',...STATUSES].map(s=>`<button class="filter-pill ${delFilter===s?'active':''}" onclick="delFilter='${s}';renderActive()">${s==='ALL'?'All':esc(s.replace('DELIVERED - ',''))} <span class="muted">${s==='ALL'?state.deliveries.length:state.deliveries.filter(r=>r.status===s).length}</span></button>`).join('')}
+    </div>
+    <div class="filter-pills">
+      <span class="muted" style="align-self:center;font-size:11px;font-weight:600;margin-right:2px">Activation:</span>
+      <button class="filter-pill ${delActFilter==='ALL'?'active':''}" onclick="delActFilter='ALL';renderActive()">All</button>
+      <button class="filter-pill ${delActFilter==='Pending'?'active':''}" style="${delActFilter==='Pending'?'background:var(--danger);border-color:var(--danger)':''}" onclick="delActFilter='Pending';renderActive()">🔴 Pending <span class="muted">${state.deliveries.filter(r=>r.activation!=='Activated').length}</span></button>
+      <button class="filter-pill ${delActFilter==='Activated'?'active':''}" onclick="delActFilter='Activated';renderActive()">✅ Activated <span class="muted">${state.deliveries.filter(r=>r.activation==='Activated').length}</span></button>
+      <span class="muted" style="align-self:center;font-size:11px;font-weight:600;margin:0 2px 0 12px">Type:</span>
+      <button class="filter-pill ${delTypeFilter==='ALL'?'active':''}" onclick="delTypeFilter='ALL';renderActive()">All</button>
+      <button class="filter-pill ${delTypeFilter==='Consumer'?'active':''}" onclick="delTypeFilter='Consumer';renderActive()">Consumer <span class="muted">${state.deliveries.filter(r=>r.orderType==='Consumer').length}</span></button>
+      <button class="filter-pill ${delTypeFilter==='Commercial'?'active':''}" onclick="delTypeFilter='Commercial';renderActive()">Commercial <span class="muted">${state.deliveries.filter(r=>r.orderType==='Commercial').length}</span></button>
     </div>
     <div class="table-wrap"><table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th>⚙</th></tr></thead><tbody>
       ${rows.length?rows.map(r=>`<tr>
