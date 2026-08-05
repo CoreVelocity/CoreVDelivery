@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.7</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.8</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.7</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.8</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.7</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.8</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.7
-   Build: v4.7 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.8
+   Build: v4.8 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -794,7 +794,7 @@ function mergeArr(localArr,remoteArr,tombs){
   (localArr||[]).forEach(l=>{ if(!l||!l.id) return; const r=m.get(l.id); if(!r){ m.set(l.id,l); return; }
     const lt=l._ts||0, rt=r._ts||0;
     if(lt>rt) m.set(l.id,l); else if(rt>lt) m.set(l.id,r);
-    else m.set(l.id, (l.storage==='onedrive'&&r.storage!=='onedrive')?l:r); }); // tie → prefer the offloaded (lean) copy
+    else { const lo=l.storage==='onedrive', ro=r.storage==='onedrive'; m.set(l.id, (ro&&!lo)?r:l); } }); // tie → keep LOCAL edit (unless remote is the offloaded copy)
   if(tombs){ for(const id in tombs){ const rec=m.get(id); if(rec && (tombs[id]>=(rec._ts||0))) m.delete(id); } }
   return [...m.values()];
 }
@@ -1309,21 +1309,21 @@ function openStock(id){ if(!requireEdit('spares'))return; const s=id?state.stock
     <div class="fld"><label>Stock received</label><input type="number" name="received" value="${s.received||0}"></div>
     <div class="fld"><label>Stocks moved</label><input type="number" name="moved" value="${s.moved||0}"></div>
     <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div></div>`,
-    ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); f._ts=Date.now(); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
 }
 /* ── automatic stock reduction helpers ──
    adjustStockMoved(name, delta): moves `delta` units OUT of the named stock item
    (delta>0 reduces in-stock, delta<0 restores). Returns the units actually applied
    so the issue record can store its stockDelta for clean edit/delete reconciliation. */
 function findStock(name){ if(!name) return null; const n=String(name).trim().toLowerCase(); return state.stock.find(s=>(s.product||'').trim().toLowerCase()===n); }
-function adjustStockMoved(name,delta){ const s=findStock(name); if(!s) return 0; s.moved=Math.max(0,(Number(s.moved)||0)+delta); return delta; }
+function adjustStockMoved(name,delta){ const s=findStock(name); if(!s) return 0; s.moved=Math.max(0,(Number(s.moved)||0)+delta); s._ts=Date.now(); return delta; }
 
 function openMove(id){ if(!requireEdit('spares'))return; const s=state.stock.find(x=>x.id===id);
   modal('Stock movement — '+esc(s.product),`<div class="fld"><label>Quantity to move out (current in stock: ${qtyInStock(s)})</label><input type="number" name="qty" value="1" min="1"></div>
     <div class="fld" style="margin-top:12px"><label>Issued to (client / note, optional → adds to Issued log)</label><input name="client"></div>
     <div class="fld" style="margin-top:12px"><label>Region</label><select name="region">${REGIONS.map(r=>`<option>${r}</option>`).join('')}</select></div>
     <div class="hint" style="margin-top:10px">Moving out automatically reduces this item's in-stock count.</div>`,
-    ()=>{const f=getForm();const q=Number(f.qty)||0; s.moved=(Number(s.moved)||0)+q;
+    ()=>{const f=getForm();const q=Number(f.qty)||0; s.moved=(Number(s.moved)||0)+q; s._ts=Date.now();
       if(f.client) state.accessories.unshift({id:uid(),date:new Date().toISOString().slice(0,10),client:f.client,region:f.region,item:s.product,qty:q,stockDelta:q,_ts:Date.now()});
       persist(); closeModal(); toast('Moved '+q+' units out of stock','ok');});
 }
