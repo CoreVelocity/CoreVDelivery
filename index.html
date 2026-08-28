@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.8</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v4.9</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.8</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v4.9</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.8</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v4.9</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.8
-   Build: v4.8 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.9
+   Build: v4.9 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1285,7 +1285,7 @@ function renderSpares(){
       shown+=items.length;
       return `<div class="panel" style="margin-bottom:14px"><h3>${cat==='Fitness Equipment'?'🏋️':cat==='Accessories'?'🎒':'🔧'} ${cat} <span class="muted" style="font-weight:600;margin-left:auto;font-size:12px">${items.length}</span></h3>
       <div class="table-wrap" style="box-shadow:none;border:none"><table><thead><tr><th>Product</th><th>SKU</th><th>Supplier</th><th>Received</th><th>Moved</th><th>In Stock</th><th>Min</th><th>Reorder?</th><th>⚙</th></tr></thead><tbody>
-      ${items.map(s=>{const qn=qtyInStock(s);const re=qn<=s.min;return `<tr><td><b>${esc(s.product)}</b></td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${qn}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
+      ${items.map(s=>{const qn=qtyInStock(s);const re=qn<=s.min;const gv=(s.issuedTo||[]);const gt=gv.reduce((a,g)=>a+(Number(g.qty)||0),0);return `<tr><td><b>${esc(s.product)}</b>${gv.length?`<div class="muted" style="font-size:10.5px" title="${esc(gv.map(g=>g.client+': '+g.qty).join(', '))}">🧾 ${gt} pcs given · ${gv.length} client${gv.length>1?'s':''}</div>`:''}</td><td>${esc(s.sku)}</td><td>${esc(s.supplier)}</td><td>${s.received}</td><td>${s.moved}</td><td><b>${qn}</b></td><td>${s.min}</td><td>${re?'<span class="pill red">REORDER</span>':'<span class="pill green">OK</span>'}</td>
       <td class="actions">${canEditModule('spares')?`<button class="mini-btn" onclick="openStock('${s.id}')">Edit</button> <button class="mini-btn" onclick="openMove('${s.id}')">Move</button>`:''}${canDelete()?` <button class="mini-btn del" onclick="delStock('${s.id}')">✕</button>`:''}</td></tr>`;}).join('')}
       </tbody></table></div></div>`;
     }).join('');
@@ -1301,6 +1301,8 @@ function renderSpares(){
 }
 function openStock(id){ if(!requireEdit('spares'))return; const s=id?state.stock.find(x=>x.id===id):{id:uid(),cat:'Spare Parts',supplier:'OxeFit Inc.',received:0,moved:0,min:2};
   const sel=(n,o,v)=>`<select name="${n}">${o.map(x=>`<option ${v===x?'selected':''}>${x}</option>`).join('')}</select>`;
+  const given=s.issuedTo||[];
+  const givenHtml = given.length ? '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">'+given.map((gv,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:12.5px"><span><b>${esc(gv.client)}</b> — ${esc(String(gv.qty))} pcs <span class="muted">${gv.date?'· '+fmtDate(gv.date):''}${gv.by?' · '+esc(gv.by):''}</span></span>${canDelete()?`<button class="mini-btn del" onclick="delGiven('${s.id}',${i})">✕</button>`:''}</div>`).join('')+'</div>' : '<div class="muted" style="font-size:12px;margin-top:4px">No client records yet.</div>';
   modal(id?'Edit item':'New stock item',`<div class="form-grid">
     <div class="fld"><label>Product name</label><input name="product" value="${esc(s.product||'')}"></div>
     <div class="fld"><label>Category</label>${sel('cat',STOCK_CATS,s.cat)}</div>
@@ -1308,9 +1310,19 @@ function openStock(id){ if(!requireEdit('spares'))return; const s=id?state.stock
     <div class="fld"><label>Supplier</label><input name="supplier" value="${esc(s.supplier||'')}"></div>
     <div class="fld"><label>Stock received</label><input type="number" name="received" value="${s.received||0}"></div>
     <div class="fld"><label>Stocks moved</label><input type="number" name="moved" value="${s.moved||0}"></div>
-    <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div></div>`,
-    ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); f._ts=Date.now(); if(id)Object.assign(s,f);else state.stock.push({id:uid(),...f}); persist(); closeModal(); toast('Saved','ok');});
+    <div class="fld"><label>Minimum stock level</label><input type="number" name="min" value="${s.min||0}"></div>
+    <div class="fld full" style="border-top:1px solid var(--border);margin-top:4px;padding-top:12px"><label>🧾 Given to client — record (optional)</label>
+      <div style="display:flex;gap:8px"><input name="giveClient" placeholder="Client name" style="flex:2"><input type="number" name="giveQty" placeholder="Qty" min="1" style="flex:1"></div>
+      <div class="hint" style="margin-top:6px">Adds a dated record of how many items were given to this client, for better tracking.${given.length?` &nbsp;<b>${given.reduce((a,g)=>a+(Number(g.qty)||0),0)} pcs</b> across ${given.length} record(s):`:''}</div>
+      ${givenHtml}
+    </div></div>`,
+    ()=>{const f=getForm();['received','moved','min'].forEach(k=>f[k]=Number(f[k])||0); f._ts=Date.now();
+      const gc=(f.giveClient||'').trim(), gq=Number(f.giveQty)||0; delete f.giveClient; delete f.giveQty;
+      if(id){ Object.assign(s,f); } else { state.stock.push(s); Object.assign(s,f); }
+      if(gc && gq>0){ s.issuedTo=s.issuedTo||[]; s.issuedTo.unshift({client:gc,qty:gq,date:new Date().toISOString().slice(0,10),by:CURRENT_USER}); }
+      persist(); closeModal(); toast(gc&&gq>0?('Saved — recorded '+gq+' pcs to '+gc):'Saved','ok');});
 }
+function delGiven(id,i){ if(!canDelete())return; const s=state.stock.find(x=>x.id===id); if(!s||!s.issuedTo) return; s.issuedTo.splice(i,1); s._ts=Date.now(); persist(); openStock(id); }
 /* ── automatic stock reduction helpers ──
    adjustStockMoved(name, delta): moves `delta` units OUT of the named stock item
    (delta>0 reduces in-stock, delta<0 restores). Returns the units actually applied
