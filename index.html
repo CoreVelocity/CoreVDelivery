@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v4.9</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v5.0</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +228,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v4.9</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v5.0</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +251,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v4.9</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v5.0</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +295,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v4.9
-   Build: v4.9 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v5.0
+   Build: v5.0 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1025,23 +1026,26 @@ function groupCount(arr,key){ const m={}; arr.forEach(x=>{const k=x[key]||'—';
 /* ============================================================
    VIEW: EXECUTIVE DASHBOARD
 ============================================================ */
+let dashPeriod='all';
+function inDashPeriod(ds){ if(dashPeriod==='all') return true; if(!ds) return false; const days={week:7,month:31,quarter:92,half:183,year:366}[dashPeriod]; if(!days) return true; const dt=new Date(ds); if(isNaN(dt)) return false; const now=new Date(); const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59).getTime(); return dt.getTime()>=end-days*864e5 && dt.getTime()<=end; }
 function renderDashboard(){
-  const d=state.deliveries;
+  const dAll=state.deliveries;
+  const d=dAll.filter(x=>inDashPeriod(x.deliveryDate));
   const open=d.filter(x=>x.status!=='CLOSED').length;
   const closed=d.filter(x=>x.status==='CLOSED').length;
   const reorder=state.stock.filter(s=>qtyInStock(s)<=s.min);
-  const openTickets=state.tickets.filter(t=>t.statusCoreV!=='CLOSE').length;
-  const totalCost=state.costing.reduce((a,b)=>a+(Number(b.cost)||0),0);
+  const openTickets=state.tickets.filter(t=>t.statusCoreV!=='CLOSE' && inDashPeriod(t.date)).length;
+  const totalCost=state.costing.filter(b=>inDashPeriod(b.date)).reduce((a,b)=>a+(Number(b.cost)||0),0);
   const satis=d.filter(x=>x.successCall==='SATISFIED').length;
   const satisRate=d.length?Math.round(satis/d.length*100):0;
   // warranties expiring in 90 days
-  const soon=d.filter(x=>{ const e=addMonths(x.warrantyStart,x.warrantyMonths); if(!e) return false; const days=(new Date(e)-new Date())/864e5; return days>0&&days<=90; });
+  const soon=dAll.filter(x=>{ const e=addMonths(x.warrantyStart,x.warrantyMonths); if(!e) return false; const days=(new Date(e)-new Date())/864e5; return days>0&&days<=90; });
   // monthly trend (last 6 months)
   const months=[]; const now=new Date();
   for(let i=5;i>=0;i--){ const dt=new Date(now.getFullYear(),now.getMonth()-i,1); months.push({key:dt.toISOString().slice(0,7),label:dt.toLocaleDateString('en-GB',{month:'short'})}); }
-  const trend=months.map(m=>({label:m.label,value:d.filter(x=>(x.deliveryDate||'').slice(0,7)===m.key).length,color:'#2563eb'}));
+  const trend=months.map(m=>({label:m.label,value:dAll.filter(x=>(x.deliveryDate||'').slice(0,7)===m.key).length,color:'#2563eb'}));
 
-  const avgByModel=COST_TYPES.filter(t=>['XS1','XP1'].includes(t)).map(t=>{ const rows=state.costing.filter(c=>c.type===t); const avg=rows.length?rows.reduce((a,b)=>a+(+b.cost||0),0)/rows.length:0; return {label:'Avg '+t,value:Math.round(avg)}; });
+  const avgByModel=COST_TYPES.filter(t=>['XS1','XP1'].includes(t)).map(t=>{ const rows=state.costing.filter(c=>c.type===t && inDashPeriod(c.date)); const avg=rows.length?rows.reduce((a,b)=>a+(+b.cost||0),0)/rows.length:0; return {label:'Avg '+t,value:Math.round(avg)}; });
 
   // Equipment in-stock pulled live from Spares & Stock
   const eqStock=['XS1-FLOW','XS1-PEAK','XP1'].map(p=>{ const s=state.stock.find(x=>(x.product||'').toUpperCase().replace(/\s+/g,'')===p.replace(/\s+/g,'')); return {label:p, qty:s?qtyInStock(s):0, min:s?s.min:0, found:!!s}; });
@@ -1059,6 +1063,11 @@ function renderDashboard(){
       <div><div class="page-title">Executive Dashboard</div>
       <div class="page-sub">Live operational truth across deliveries, stock, costs &amp; support · updated ${state.meta.updated?fmtDate(state.meta.updated):'—'}</div></div>
       <div class="toolbar"><button class="btn" onclick="manualSync()">🔄 Sync</button></div>
+    </div>
+    <div class="filter-pills" style="margin-bottom:16px">
+      <span class="muted" style="align-self:center;font-size:11px;font-weight:700;margin-right:4px">PERIOD:</span>
+      ${[['week','Week'],['month','Month'],['quarter','Quarter'],['half','Half-Year'],['year','Annual'],['all','All']].map(pr=>`<button class="filter-pill ${dashPeriod===pr[0]?'active':''}" onclick="dashPeriod='${pr[0]}';renderActive()">${pr[1]}</button>`).join('')}
+      <span class="muted" style="align-self:center;font-size:11px;margin-left:8px">${dashPeriod==='all'?'All time':'Last '+({week:'7 days',month:'month',quarter:'quarter',half:'6 months',year:'12 months'}[dashPeriod])} · ${d.length} deliveries</span>
     </div>
 
     <div class="kpi-grid">
