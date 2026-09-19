@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OXEFIT by CoreV — Delivery Operations Tracker v5.1</title>
+<title>OXEFIT by CoreV — Delivery Operations Tracker v5.2</title>
 
 <!-- MSAL.js for Microsoft Azure (Entra ID) login + OneDrive (Graph) sync -->
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
@@ -227,7 +227,7 @@ td.actions{position:sticky;right:0;background:inherit}
       <div class="login-logo">OX</div>
       <div><div class="login-title">OxeFit · CoreV</div></div>
     </div>
-    <div class="login-sub">Delivery Operations Tracker <b>v5.1</b></div>
+    <div class="login-sub">Delivery Operations Tracker <b>v5.2</b></div>
 
     <div id="offlineBanner" class="offline-banner" style="display:none"></div>
 
@@ -250,7 +250,7 @@ td.actions{position:sticky;right:0;background:inherit}
     <button class="burger" onclick="toggleSidebar()" title="Menu">☰</button>
     <div class="brand">
       <div class="brand-logo">OX</div>
-      <div>OxeFit · CoreV <small>Delivery Operations · v5.1</small></div>
+      <div>OxeFit · CoreV <small>Delivery Operations · v5.2</small></div>
     </div>
     <div class="topbar-spacer"></div>
     <div class="sync-chip" id="syncChip" onclick="manualSync()" title="Click to sync">
@@ -294,8 +294,8 @@ td.actions{position:sticky;right:0;background:inherit}
 
 <script>
 /* ============================================================
-   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v5.1
-   Build: v5.1 / 2026-06-06
+   OXEFIT · CoreV — DELIVERY OPERATIONS TRACKER  v5.2
+   Build: v5.2 / 2026-06-06
    ------------------------------------------------------------
    Modules: Executive Dashboard · Deliveries · Spares & Stock ·
             Shipping & Costs · Tickets (Outlook import) · Reviews (Google)
@@ -1026,7 +1026,7 @@ function groupCount(arr,key){ const m={}; arr.forEach(x=>{const k=x[key]||'—';
    VIEW: EXECUTIVE DASHBOARD
 ============================================================ */
 let dashPeriod='all';
-function inPeriod(ds, period){ if(period==='all') return true; if(!ds) return false; const days={week:7,month:31,quarter:92,half:183,year:366}[period]; if(!days) return true; const dt=new Date(ds); if(isNaN(dt)) return false; const now=new Date(); const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59).getTime(); return dt.getTime()>=end-days*864e5 && dt.getTime()<=end; }
+function inPeriod(ds, period){ if(period==='all') return true; if(!ds) return false; const dt=new Date(ds); if(isNaN(dt)) return false; const now=new Date(); const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59).getTime(); if(period==='year'){ const start=new Date(now.getFullYear(),0,1).getTime(); return dt.getTime()>=start && dt.getTime()<=end; } const days={week:7,month:31,quarter:92,half:183}[period]; if(!days) return true; return dt.getTime()>=end-days*864e5 && dt.getTime()<=end; }
 function inDashPeriod(ds){ return inPeriod(ds, dashPeriod); }
 function renderDashboard(){
   const dAll=state.deliveries;
@@ -1066,8 +1066,8 @@ function renderDashboard(){
     </div>
     <div class="filter-pills" style="margin-bottom:16px">
       <span class="muted" style="align-self:center;font-size:11px;font-weight:700;margin-right:4px">PERIOD:</span>
-      ${[['week','Week'],['month','Month'],['quarter','Quarter'],['half','Half-Year'],['year','Annual'],['all','All']].map(pr=>`<button class="filter-pill ${dashPeriod===pr[0]?'active':''}" onclick="dashPeriod='${pr[0]}';renderActive()">${pr[1]}</button>`).join('')}
-      <span class="muted" style="align-self:center;font-size:11px;margin-left:8px">${dashPeriod==='all'?'All time':'Last '+({week:'7 days',month:'month',quarter:'quarter',half:'6 months',year:'12 months'}[dashPeriod])} · ${d.length} deliveries</span>
+      ${[['week','Week'],['month','Month'],['quarter','Quarter'],['half','Half-Year'],['year','FY'],['all','All']].map(pr=>`<button class="filter-pill ${dashPeriod===pr[0]?'active':''}" onclick="dashPeriod='${pr[0]}';renderActive()">${pr[1]}</button>`).join('')}
+      <span class="muted" style="align-self:center;font-size:11px;margin-left:8px">${dashPeriod==='all'?'All time':dashPeriod==='year'?'FY '+new Date().getFullYear()+' to date':'Last '+({week:'7 days',month:'month',quarter:'quarter',half:'6 months'}[dashPeriod])} · ${d.length} deliveries</span>
     </div>
 
     <div class="kpi-grid">
@@ -1132,7 +1132,7 @@ function renderDeliveries(){
   document.getElementById('mainContent').insertAdjacentHTML('beforeend',`
   <div class="view active">
     <div class="page-head">
-      <div><div class="page-title">Deliveries</div><div class="page-sub">${state.deliveries.length} delivery notes · showing <b>${rows.length}</b>${delPeriod!=='all'?' this '+({week:'week',month:'month',quarter:'quarter',half:'half-year',year:'year'}[delPeriod]):''}</div></div>
+      <div><div class="page-title">Deliveries</div><div class="page-sub">${state.deliveries.length} delivery notes · showing <b>${rows.length}</b>${delPeriod==='all'?'':delPeriod==='year'?' in FY'+new Date().getFullYear():' this '+({week:'week',month:'month',quarter:'quarter',half:'half-year'}[delPeriod])}</div></div>
       <div class="toolbar">
         <div class="search"><input id="delSearch" placeholder="Search receiver, model, ID…" value="${esc(delSearch)}" oninput="delSearch=this.value;renderActive()"></div>
         <button class="btn" onclick="exportCSV('deliveries')">⬇ CSV</button>
@@ -1142,7 +1142,7 @@ function renderDeliveries(){
     </div>
     <div class="filter-pills">
       <span class="muted" style="align-self:center;font-size:11px;font-weight:700;margin-right:4px">PERIOD:</span>
-      ${[['week','Week'],['month','Month'],['quarter','Quarter'],['half','Half-Year'],['year','Annual'],['all','All']].map(pr=>`<button class="filter-pill ${delPeriod===pr[0]?'active':''}" onclick="delPeriod='${pr[0]}';renderActive()">${pr[1]} <span class="muted">${state.deliveries.filter(r=>inPeriod(r.deliveryDate,pr[0])).length}</span></button>`).join('')}
+      ${[['week','Week'],['month','Month'],['quarter','Quarter'],['half','Half-Year'],['year','FY'],['all','All']].map(pr=>`<button class="filter-pill ${delPeriod===pr[0]?'active':''}" onclick="delPeriod='${pr[0]}';renderActive()">${pr[1]} <span class="muted">${state.deliveries.filter(r=>inPeriod(r.deliveryDate,pr[0])).length}</span></button>`).join('')}
     </div>
     <div class="filter-pills">
       ${['ALL',...STATUSES].map(s=>`<button class="filter-pill ${delFilter===s?'active':''}" onclick="delFilter='${s}';renderActive()">${s==='ALL'?'All':esc(s.replace('DELIVERED - ',''))} <span class="muted">${s==='ALL'?state.deliveries.length:state.deliveries.filter(r=>r.status===s).length}</span></button>`).join('')}
